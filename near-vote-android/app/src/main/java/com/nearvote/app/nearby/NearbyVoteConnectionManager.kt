@@ -50,10 +50,11 @@ class NearbyVoteConnectionManager(
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             pendingEndpoints -= endpointId
             if (result.status.isSuccess) {
+                removeDuplicateConnections(endpointId)
                 connectedEndpoints += endpointId
                 listener.onEndpointConnected(endpointId)
                 listener.onLog("연결 완료: ${endpointNames[endpointId] ?: endpointId}")
-                listener.onConnectionCountChanged(connectedEndpoints.size)
+                notifyConnectionCount()
             } else {
                 listener.onLog("연결 실패: ${endpointNames[endpointId] ?: endpointId} (${result.status.statusCode})")
             }
@@ -62,7 +63,7 @@ class NearbyVoteConnectionManager(
         override fun onDisconnected(endpointId: String) {
             connectedEndpoints -= endpointId
             listener.onEndpointDisconnected(endpointId)
-            listener.onConnectionCountChanged(connectedEndpoints.size)
+            notifyConnectionCount()
             listener.onLog("연결 해제: ${endpointNames[endpointId] ?: endpointId}")
         }
     }
@@ -138,24 +139,25 @@ class NearbyVoteConnectionManager(
         if (!isDiscovering) {
             startDiscovery()
         }
-        listener.onConnectionCountChanged(connectedEndpoints.size)
+        notifyConnectionCount()
     }
 
     fun connectedPeerNames(): List<String> {
-        return connectedEndpoints.map { endpointId -> endpointNames[endpointId] ?: endpointId }
+        return activeEndpoints().map { endpointId -> endpointNames[endpointId] ?: endpointId }
     }
 
     fun sendToAll(message: String) {
-        if (connectedEndpoints.isEmpty()) {
+        val endpoints = activeEndpoints()
+        if (endpoints.isEmpty()) {
             listener.onLog("전송할 연결 기기가 없음")
             return
         }
-        connectedEndpoints.forEach { endpointId ->
+        endpoints.forEach { endpointId ->
             val payload = Payload.fromBytes(message.toByteArray(StandardCharsets.UTF_8))
             client.sendPayload(endpointId, payload)
                 .addOnFailureListener { listener.onLog("전송 실패: ${it.message}") }
         }
-        listener.onLog("${connectedEndpoints.size}대에 메시지 전송")
+        listener.onLog("${endpoints.size}대에 메시지 전송")
     }
 
     fun sendTo(endpointId: String, message: String) {
@@ -178,5 +180,25 @@ class NearbyVoteConnectionManager(
         isAdvertising = false
         isDiscovering = false
         listener.onConnectionCountChanged(0)
+    }
+
+    private fun activeEndpoints(): List<String> {
+        return connectedEndpoints.distinctBy { endpointId -> endpointNames[endpointId] ?: endpointId }
+    }
+
+    private fun removeDuplicateConnections(newEndpointId: String) {
+        val newName = endpointNames[newEndpointId] ?: newEndpointId
+        val duplicates = connectedEndpoints.filter { endpointId ->
+            endpointId != newEndpointId && (endpointNames[endpointId] ?: endpointId) == newName
+        }
+        duplicates.forEach { endpointId ->
+            connectedEndpoints -= endpointId
+            client.disconnectFromEndpoint(endpointId)
+            listener.onLog("중복 연결 정리: $newName")
+        }
+    }
+
+    private fun notifyConnectionCount() {
+        listener.onConnectionCountChanged(activeEndpoints().size)
     }
 }
