@@ -131,6 +131,16 @@ class NearbyVoteConnectionManager(
         startDiscovery()
     }
 
+    fun maintainNearbyMode() {
+        if (!isAdvertising) {
+            startAdvertising()
+        }
+        if (!isDiscovering) {
+            startDiscovery()
+        }
+        listener.onConnectionCountChanged(connectedEndpoints.size)
+    }
+
     fun sendToAll(message: String) {
         if (connectedEndpoints.isEmpty()) {
             listener.onLog("전송할 연결 기기가 없음")

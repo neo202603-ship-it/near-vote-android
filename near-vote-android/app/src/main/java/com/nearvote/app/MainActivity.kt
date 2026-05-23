@@ -40,6 +40,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var simulator: LocalVoteSimulator
     private lateinit var store: NearVoteStore
     private val handler = Handler(Looper.getMainLooper())
+    private val nearbyHeartbeat = object : Runnable {
+        override fun run() {
+            nearby.maintainNearbyMode()
+            updateConnectionStatus()
+            handler.postDelayed(this, NEARBY_HEARTBEAT_MS)
+        }
+    }
     private var selfName = ""
     private var connectedCount = 0
     private var activePoll: NearbyPoll? = null
@@ -65,6 +72,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator = LocalVoteSimulator(selfName)
         requestNearbyPermissions()
         showHome()
+        startNearbyHeartbeat()
     }
 
     override fun onDestroy() {
@@ -101,6 +109,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         setPage()
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
+        connectionStatusView = statusCard("자동 연결 중", connectionStatusText())
+        page.addView(connectionStatusView)
         page.addView(outlineButton("내 아이디 관리") { showMyPage() })
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
             showCompose()
@@ -670,15 +680,25 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         updateConnectionStatus()
     }
 
+    private fun startNearbyHeartbeat() {
+        handler.removeCallbacks(nearbyHeartbeat)
+        nearby.maintainNearbyMode()
+        handler.postDelayed(nearbyHeartbeat, NEARBY_HEARTBEAT_MS)
+    }
+
     private fun updateConnectionStatus() {
         runOnUiThread {
             if (::connectionStatusView.isInitialized) {
-                connectionStatusView.text = if (connectedCount == 0) {
-                    "연결된 기기 0대\n두 기기에서 모두 주변 연결 시작을 누른 뒤 잠시 기다리세요."
-                } else {
-                    "연결된 기기 ${connectedCount}대\n이제 테스트 메시지 보내기로 수신 로그를 확인할 수 있습니다."
-                }
+                connectionStatusView.text = "자동 연결 중\n${connectionStatusText()}"
             }
+        }
+    }
+
+    private fun connectionStatusText(): String {
+        return if (connectedCount == 0) {
+            "연결된 기기 0대 · 약 ${NEARBY_HEARTBEAT_MS / 1000}초마다 주변 연결 상태를 확인합니다."
+        } else {
+            "연결된 기기 ${connectedCount}대 · 설문 게시와 투표 참여가 가능합니다."
         }
     }
 
@@ -705,6 +725,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         receivedVotes.clear()
         submittedVotes.clear()
         sharedResultPollIds.clear()
+        startNearbyHeartbeat()
     }
 
     private fun suggestIdentity(): String {
@@ -950,4 +971,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
+    companion object {
+        private const val NEARBY_HEARTBEAT_MS = 30_000L
+    }
 }
