@@ -91,21 +91,11 @@ export function bindCompose(render) {
     });
   });
 
-  document.querySelectorAll('[data-use-template]').forEach((button) => {
+  document.querySelectorAll('[data-select-template]').forEach((button) => {
     button.addEventListener('click', () => {
-      const template = state.templates.find((item) => item.id === button.dataset.useTemplate);
-      state.editingTemplateId = template.isDefault ? null : template.id;
-      state.draftTemplate = template.isDefault ? normalizeTemplate({ ...template, id: createId('tpl'), source: '내 템플릿', isDefault: false, createdAt: null, updatedAt: null }) : null;
-      state.templatePickerOpen = false;
-      render();
-    });
-  });
-
-  document.querySelectorAll('[data-copy-template]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const template = state.templates.find((item) => item.id === button.dataset.copyTemplate);
+      const template = state.templates.find((item) => item.id === button.dataset.selectTemplate);
       state.editingTemplateId = null;
-      state.draftTemplate = normalizeTemplate({ ...template, id: createId('tpl'), title: `${template.title} 복사본`, source: '내 템플릿', isDefault: false, createdAt: null, updatedAt: null });
+      state.draftTemplate = normalizeTemplate({ ...template, id: createId('tpl'), source: '내 템플릿', isDefault: false, createdAt: null, updatedAt: null });
       state.templatePickerOpen = false;
       render();
     });
@@ -123,15 +113,6 @@ export function bindCompose(render) {
     });
   });
 
-  document.querySelectorAll('[data-publish-template]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const template = state.templates.find((item) => item.id === button.dataset.publishTemplate);
-      await publishPoll(template);
-      state.draftTemplate = null;
-      state.templatePickerOpen = false;
-      navigate('ongoing');
-    });
-  });
 }
 
 function templateLayer() {
@@ -158,9 +139,7 @@ function templateLayer() {
                 `}
               </div>
               <div class="template-actions">
-                <button type="button" data-use-template="${template.id}">${template.isDefault ? '사용' : '수정'}</button>
-                <button type="button" data-copy-template="${template.id}">복사</button>
-                <button type="button" data-publish-template="${template.id}">게시</button>
+                <button type="button" data-select-template="${template.id}">선택</button>
                 ${canDeleteTemplate(template) ? `<button class="danger-action" type="button" data-delete-template="${template.id}">삭제</button>` : ''}
               </div>
             </article>
