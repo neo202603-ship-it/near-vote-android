@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 add(Manifest.permission.BLUETOOTH_CONNECT)
                 add(Manifest.permission.BLUETOOTH_SCAN)
             }
-            if (Build.VERSION.SDK_INT >= 32) {
+            if (Build.VERSION.SDK_INT >= 33) {
                 add(Manifest.permission.NEARBY_WIFI_DEVICES)
             }
         }.toTypedArray()
