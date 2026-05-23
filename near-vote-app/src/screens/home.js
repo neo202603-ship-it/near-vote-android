@@ -1,8 +1,9 @@
 import { navigate } from '../core/router.js';
 import { notify, setUserId, state, suggestUserId } from '../core/store.js';
-import { escapeHtml } from '../core/view.js';
+import { escapeHtml, formatHumanTime } from '../core/view.js';
 
 export function homeScreen() {
+  const latestResult = state.ledgerHistory[0];
   const identitySetup = state.hasUserId ? '' : `
     <form class="identity-form first-identity" id="identityForm">
       <label>내 아이디
@@ -29,20 +30,38 @@ export function homeScreen() {
       </div>
       <div class="panel">
         <div class="panel-heading">
-          <h2>지난 결과</h2>
+          <h2>최근 결과</h2>
           <button class="ghost-button" type="button" data-route="history">전체</button>
         </div>
-        <div class="list">
-          ${state.ledgerHistory.length ? state.ledgerHistory.slice(0, 3).map((block) => `
-            <article class="list-row">
-              <strong>${escapeHtml(block.question)}</strong>
-              <span>${block.voteCount}표 · ${block.verified ? '검증 완료' : '검증 실패'}</span>
-            </article>
-          `).join('') : '<div class="empty-state">아직 저장된 원장이 없습니다.</div>'}
-        </div>
+        ${latestResult ? recentResultCard(latestResult) : '<div class="empty-state compact-empty">아직 저장된 결과가 없습니다.</div>'}
       </div>
     </section>
   `;
+}
+
+function recentResultCard(block) {
+  const winner = topResult(block);
+  const total = block.participantCount || block.voteCount || 0;
+  const percent = total ? Math.round((winner.count / total) * 100) : 0;
+
+  return `
+    <article class="recent-result-card">
+      <span>${escapeHtml(formatHumanTime(block.createdAt))}</span>
+      <h3>${escapeHtml(block.question)}</h3>
+      <div class="recent-winner">
+        <strong>${escapeHtml(winner.option)}</strong>
+        <meter min="0" max="${Math.max(1, total)}" value="${winner.count}"></meter>
+        <em>${winner.count}명 (${percent}%)</em>
+      </div>
+      <small>참여 ${total}명 · 투표 ${block.voteCount}표 · ${block.verified ? '검증 완료' : '검증 실패'}</small>
+    </article>
+  `;
+}
+
+function topResult(block) {
+  const [option, count] = Object.entries(block.result)
+    .sort((first, second) => second[1] - first[1])[0] || ['결과 없음', 0];
+  return { option, count };
 }
 
 export function bindHome() {

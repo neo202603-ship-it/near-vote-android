@@ -294,6 +294,47 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.recent-result-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.recent-result-card > span,
+.recent-result-card small {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.recent-result-card h3 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.recent-winner {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.8fr) minmax(110px, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfa;
+}
+
+.recent-winner em {
+  color: var(--select);
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.compact-empty {
+  min-height: 160px;
+}
+
 .action-row {
   display: flex;
   flex-wrap: wrap;
@@ -816,6 +857,7 @@ pre {
   .status-grid,
   .result-summary,
   .identity-form,
+  .recent-winner,
   .history-footer {
     grid-template-columns: 1fr;
   }
