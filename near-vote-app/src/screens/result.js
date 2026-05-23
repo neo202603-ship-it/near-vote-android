@@ -1,5 +1,5 @@
 import { state } from '../core/store.js';
-import { auditGossipAgainstBlock, isReceiptIncluded } from '../core/protocol.js';
+import { auditGossipAgainstBlock, isReceiptIncluded, summarizeVerification } from '../core/protocol.js';
 import { emptyState, escapeHtml } from '../core/view.js';
 
 export function resultScreen() {
@@ -11,6 +11,7 @@ export function resultScreen() {
   const myReceipt = state.receipts.find((receipt) => receipt.pollId === block.pollId && receipt.voterId === 'proposer');
   const receiptIncluded = isReceiptIncluded(myReceipt, block);
   const gossipAudit = auditGossipAgainstBlock(state.gossipMessages, block);
+  const verification = summarizeVerification({ block, receipt: myReceipt, gossipAudit });
 
   return `
     <section class="panel result-panel">
@@ -31,6 +32,11 @@ export function resultScreen() {
           <span>제안자</span>
           <strong>${escapeHtml(block.proposerDisplayId || block.proposerId)}</strong>
         </article>
+      </div>
+      <div class="verification-banner ${verification.status}">
+        <span>최종 판정</span>
+        <strong>${escapeHtml(verification.label)}</strong>
+        <small>${escapeHtml(verification.detail)}</small>
       </div>
       ${myReceipt ? `
         <div class="receipt-card result-receipt">
@@ -59,7 +65,8 @@ export function resultScreen() {
         blockHash: block.blockHash.slice(0, 24),
         participantIds,
         includedVoterIds,
-        gossipAudit
+        gossipAudit,
+        verification
       }, null, 2))}</pre>
     </section>
   `;

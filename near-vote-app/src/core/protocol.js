@@ -121,3 +121,35 @@ export function auditGossipAgainstBlock(gossipMessages, block) {
     ok: missingHashes.length === 0
   };
 }
+
+export function summarizeVerification({ block, receipt = null, gossipAudit }) {
+  if (!block?.verified) {
+    return {
+      status: 'unverifiable',
+      label: '검증 불가',
+      detail: '결과 블록 해시가 일치하지 않습니다.'
+    };
+  }
+
+  if (receipt && !isReceiptIncluded(receipt, block)) {
+    return {
+      status: 'suspect',
+      label: '누락 의심',
+      detail: '내 투표 접수증이 최종 블록에 포함되지 않았습니다.'
+    };
+  }
+
+  if (!gossipAudit.ok) {
+    return {
+      status: 'suspect',
+      label: '누락 의심',
+      detail: `${gossipAudit.missingHashes.length}개의 공유 투표 해시가 최종 블록에 없습니다.`
+    };
+  }
+
+  return {
+    status: 'ok',
+    label: '정상',
+    detail: '접수증과 공유 해시가 최종 블록과 일치합니다.'
+  };
+}
