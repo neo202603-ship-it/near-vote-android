@@ -2,6 +2,7 @@ package com.nearvote.app.data
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 
 data class VoteReceipt(
     val pollId: String,
@@ -32,6 +33,7 @@ data class SharedResult(
     val question: String,
     val options: List<String>,
     val counts: Map<String, Int>,
+    val participantIds: List<String>,
     val participantCount: Int,
     val resultHash: String
 ) {
@@ -43,6 +45,7 @@ data class SharedResult(
             .put("question", question)
             .put("options", JSONArray(options))
             .put("counts", countJson)
+            .put("participantIds", JSONArray(participantIds))
             .put("participantCount", participantCount)
             .put("resultHash", resultHash)
             .toString()
@@ -57,11 +60,42 @@ data class SharedResult(
             .put("question", question)
             .put("options", JSONArray(options))
             .put("counts", countJson)
+            .put("participantIds", JSONArray(participantIds))
             .put("participantCount", participantCount)
             .put("resultHash", resultHash)
     }
 
+    fun isHashValid(): Boolean = resultHash == computeHash(
+        pollId = pollId,
+        question = question,
+        options = options,
+        counts = counts,
+        participantIds = participantIds
+    )
+
     companion object {
+        fun computeHash(
+            pollId: String,
+            question: String,
+            options: List<String>,
+            counts: Map<String, Int>,
+            participantIds: List<String>
+        ): String {
+            val canonical = buildString {
+                append(pollId)
+                append("|")
+                append(question)
+                append("|")
+                append(options.joinToString(","))
+                append("|")
+                append(options.joinToString(",") { "${it}:${counts[it] ?: 0}" })
+                append("|")
+                append(participantIds.sorted().joinToString(","))
+            }
+            val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray())
+            return digest.joinToString("") { "%02x".format(it) }
+        }
+
         fun fromPayload(proposerId: String, payloadJson: String): SharedResult {
             val payload = JSONObject(payloadJson)
             return fromJson(proposerId, payload)
@@ -75,12 +109,19 @@ data class SharedResult(
             val optionsArray = payload.getJSONArray("options")
             val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
             val countsJson = payload.getJSONObject("counts")
+            val participantIdsArray = payload.optJSONArray("participantIds")
+            val participantIds = if (participantIdsArray == null) {
+                emptyList()
+            } else {
+                (0 until participantIdsArray.length()).map { participantIdsArray.getString(it) }
+            }
             return SharedResult(
                 pollId = payload.getString("pollId"),
                 proposerId = proposerId,
                 question = payload.getString("question"),
                 options = options,
                 counts = options.associateWith { countsJson.optInt(it, 0) },
+                participantIds = participantIds,
                 participantCount = payload.getInt("participantCount"),
                 resultHash = payload.getString("resultHash")
             )

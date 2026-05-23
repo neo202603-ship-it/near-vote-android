@@ -376,7 +376,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             val count = result.counts[option] ?: 0
             page.addView(resultRow(option, count, count * 100 / total))
         }
-        page.addView(statusCard("검증 정보", "참여자 ${result.participantCount}명 · 결과 해시 ${result.resultHash.take(16)}"))
+        page.addView(statusCard(
+            if (result.isHashValid()) "검증 완료" else "검증 필요",
+            "참여자 ${result.participantCount}명 · 결과 해시 ${result.resultHash.take(16)}"
+        ))
+        if (result.participantIds.isNotEmpty()) {
+            page.addView(statusCard("참여자", result.participantIds.joinToString(", ")))
+        }
         (latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId))?.let {
             page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
         }
@@ -857,14 +863,22 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val counts = poll.options.associateWith { option ->
             receivedVotes.values.count { it == option }
         }
+        val participantIds = receivedVotes.keys.toList()
         val result = SharedResult(
             pollId = poll.id,
             proposerId = selfName,
             question = poll.question,
             options = poll.options,
             counts = counts,
+            participantIds = participantIds,
             participantCount = receivedVotes.size,
-            resultHash = hash(receivedVotes.entries.joinToString("|") { "${it.key}:${it.value}" })
+            resultHash = SharedResult.computeHash(
+                pollId = poll.id,
+                question = poll.question,
+                options = poll.options,
+                counts = counts,
+                participantIds = participantIds
+            )
         )
         sharedResult = result
         sharedResultPollIds += poll.id
