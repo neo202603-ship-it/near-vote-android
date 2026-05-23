@@ -127,10 +127,11 @@ function templateLayer() {
           ${state.templates.map((template) => `
             <article class="template-card">
               <div>
-                <span>${escapeHtml(template.source)}</span>
-                <h3>${escapeHtml(template.title)}</h3>
-                <p>${escapeHtml(template.question)}</p>
-                <small>${escapeHtml(template.options.join(' · '))}</small>
+                <div class="template-path">${escapeHtml(template.source)} &gt; ${escapeHtml(template.title)}</div>
+                <h3>${escapeHtml(template.question)}</h3>
+                <div class="template-option-list">
+                  ${template.options.map((option) => `<span>${escapeHtml(option)}</span>`).join('')}
+                </div>
                 ${template.isDefault ? '' : `
                   <div class="template-meta">
                     <small>생성 ${escapeHtml(formatHumanTime(template.createdAt))}</small>

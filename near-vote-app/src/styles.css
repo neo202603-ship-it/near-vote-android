@@ -335,20 +335,43 @@ select {
   background: rgba(255, 255, 255, 0.9);
 }
 
-.template-card span,
 .list-row span {
   color: var(--muted);
   font-size: 0.84rem;
 }
 
-.template-card h3 {
-  margin-bottom: 8px;
+.template-path {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
-.template-card p,
+.template-card h3 {
+  margin-bottom: 12px;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
 .template-card small {
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.template-option-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.template-option-list span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f6fbf9;
+  color: var(--accent-strong);
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .template-meta {
