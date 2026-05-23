@@ -60,6 +60,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private val receivedVoteNames = linkedMapOf<String, String>()
     private val submittedVotes = linkedMapOf<String, String>()
     private val sharedResultPollIds = linkedSetOf<String>()
+    private val seenIncomingPollIds = linkedSetOf<String>()
+    private val seenResultPollIds = linkedSetOf<String>()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -120,25 +122,37 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(connectionStatusView)
         page.addView(outlineButton("내 아이디 관리") { showMyPage() })
         page.addView(outlineButton("설정") { showSettings() })
+        addCurrentSessionCards()
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
             showCompose()
         })
         page.addView(actionCard("참여할 투표 찾기", "근처에서 진행 중인 투표를 찾습니다.") {
             showDiscover()
         })
-        page.addView(statusCard("지금은 한 기기 테스트 중", "실제 연결 전까지는 시뮬레이션으로 설문 흐름을 확인합니다."))
-        page.addView(outlineButton("예상 결과 미리보기") { showSimulationResult() })
+        page.addView(outlineButton("지난 결과") { showHistory() })
+        page.addView(quietButton("예상 결과 미리보기") { showSimulationResult() })
+        page.addView(quietButton("개발자 진단") { showDiagnostics() })
+    }
+
+    private fun addCurrentSessionCards() {
         activePoll?.let { poll ->
-            page.addView(outlineButton("게시한 투표 보기") { showPublishedPoll(poll) })
+            val subtitle = if (poll.hasEnded()) {
+                "투표 종료 · 참여자 ${receivedVotes.size}명"
+            } else {
+                "${poll.remainingText()} · 참여자 ${receivedVotes.size}명 · 연결 ${connectedCount}대"
+            }
+            page.addView(actionCard("게시 중: ${poll.question}", subtitle) { showPublishedPoll(poll) })
         }
         incomingPoll?.let { poll ->
-            page.addView(outlineButton("받은 투표 참여하기") { showVotePoll(poll) })
+            val submitted = submittedVotes[poll.id]
+            val subtitle = submitted?.let { "내 선택: $it" } ?: "${poll.proposerName} 제안 · ${poll.remainingText()}"
+            page.addView(actionCard("받은 투표: ${poll.question}", subtitle) { showVotePoll(poll) })
         }
-        sharedResult?.let {
-            page.addView(outlineButton("공유받은 결과 보기") { showSharedResult(it) })
+        sharedResult?.let { result ->
+            page.addView(actionCard("최근 결과: ${result.question}", "참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
+                showSharedResult(result)
+            })
         }
-        page.addView(outlineButton("지난 결과") { showHistory() })
-        page.addView(quietButton("개발자 진단") { showDiagnostics() })
     }
 
     private fun showHistory() {
@@ -790,6 +804,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         receivedVoteNames.clear()
         submittedVotes.clear()
         sharedResultPollIds.clear()
+        seenIncomingPollIds.clear()
+        seenResultPollIds.clear()
         applyAutoConnectSetting()
     }
 
@@ -815,6 +831,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         receivedVoteNames.clear()
         sharedResult = null
         sharedResultPollIds -= poll.id
+        seenResultPollIds -= poll.id
         startNearbyConnectionTest()
         sendPoll(poll)
         scheduleResultShare(poll)
@@ -878,7 +895,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     return
                 }
                 if (poll.proposerId == userId) return
+                val alreadyKnown = !seenIncomingPollIds.add(poll.id)
                 incomingPoll = poll
+                if (alreadyKnown || submittedVotes.containsKey(poll.id)) {
+                    appendLog("이미 받은 설문 갱신: ${poll.question}")
+                    return
+                }
                 runOnUiThread { showVotePoll(poll) }
             }
             NearVoteMessageType.VOTE -> {
@@ -925,8 +947,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     return
                 }
                 if (result.proposerId == userId) return
+                val alreadyKnown = !seenResultPollIds.add(result.pollId)
                 sharedResult = result
                 store.saveResult(result)
+                if (alreadyKnown) {
+                    appendLog("이미 받은 결과 블록 갱신: ${result.question}")
+                    return
+                }
                 runOnUiThread { showSharedResult(result) }
             }
             else -> Unit
