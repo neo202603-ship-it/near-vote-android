@@ -21,9 +21,11 @@ import com.nearvote.app.simulation.LocalVoteSimulator
 class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
     private lateinit var logView: TextView
+    private lateinit var connectionStatusView: TextView
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
     private val selfName = "NearVote-${Build.MODEL}"
+    private var connectedCount = 0
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -51,12 +53,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         appendLog("$endpointId 에서 메시지 수신: $message")
     }
 
+    override fun onEndpointFound(endpointId: String, endpointName: String) {
+        appendLog("발견: $endpointName ($endpointId)")
+    }
+
     override fun onEndpointConnected(endpointId: String) {
         appendLog("연결됨: $endpointId")
     }
 
     override fun onEndpointDisconnected(endpointId: String) {
         appendLog("연결 해제: $endpointId")
+    }
+
+    override fun onConnectionCountChanged(count: Int) {
+        connectedCount = count
+        updateConnectionStatus()
     }
 
     private fun showHome() {
@@ -91,10 +102,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         setPage()
         page.addView(topBar("참여할 투표 찾기"))
         page.addView(emptyCard("아직 찾은 투표 없음", "두 번째 Android 기기가 생기면 이곳에 주변 투표가 표시됩니다."))
-        page.addView(primaryButton("주변에서 찾기") {
-            nearby.startDiscovery()
-            showDiagnostics()
-        })
+        page.addView(primaryButton("주변 연결 시작") { showDiagnostics(autoStart = true) })
         page.addView(outlineButton("테스트 투표 참여해보기") { showSimulationResult() })
         page.addView(outlineButton("홈으로") { showHome() })
     }
@@ -115,15 +123,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(outlineButton("홈으로") { showHome() })
     }
 
-    private fun showDiagnostics(runSimulation: Boolean = false) {
+    private fun showDiagnostics(runSimulation: Boolean = false, autoStart: Boolean = false) {
         setPage()
         page.addView(topBar("개발자 진단"))
-        page.addView(statusCard("Nearby 연결 확인", "실제 기기 2대 테스트 때 사용하는 광고, 탐색, 메시지 로그입니다."))
-        page.addView(primaryButton("광고 시작") { nearby.startAdvertising() })
-        page.addView(primaryButton("탐색 시작") { nearby.startDiscovery() })
-        page.addView(outlineButton("PING 전송") {
+        connectionStatusView = statusCard("연결된 기기 ${connectedCount}대", "두 기기에서 모두 아래의 주변 연결 시작을 누르세요.")
+        page.addView(connectionStatusView)
+        page.addView(primaryButton("주변 연결 시작") { startNearbyConnectionTest() })
+        page.addView(outlineButton("테스트 메시지 보내기") {
             nearby.sendToAll(NearVoteMessage.ping(selfName).toJson())
         })
+        page.addView(outlineButton("광고만 시작") { nearby.startAdvertising() })
+        page.addView(outlineButton("탐색만 시작") { nearby.startDiscovery() })
         page.addView(outlineButton("로컬 시뮬레이션 로그 실행") { runLocalSimulation() })
         page.addView(quietButton("로그 지우기") {
             logView.text = "Near Vote Android PoC\n내 아이디: $selfName\n"
@@ -138,6 +148,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(logView.apply { layoutParams = blockParams() })
         if (runSimulation) {
             runLocalSimulation()
+        }
+        if (autoStart) {
+            startNearbyConnectionTest()
         }
     }
 
@@ -328,6 +341,24 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         runOnUiThread {
             if (::logView.isInitialized) {
                 logView.append("\n$message")
+            }
+        }
+    }
+
+    private fun startNearbyConnectionTest() {
+        appendLog("양쪽 기기에서 이 버튼을 누르면 서로를 찾고 연결을 시도합니다.")
+        nearby.startNearbyMode()
+        updateConnectionStatus()
+    }
+
+    private fun updateConnectionStatus() {
+        runOnUiThread {
+            if (::connectionStatusView.isInitialized) {
+                connectionStatusView.text = if (connectedCount == 0) {
+                    "연결된 기기 0대\n두 기기에서 모두 주변 연결 시작을 누른 뒤 잠시 기다리세요."
+                } else {
+                    "연결된 기기 ${connectedCount}대\n이제 테스트 메시지 보내기로 수신 로그를 확인할 수 있습니다."
+                }
             }
         }
     }
