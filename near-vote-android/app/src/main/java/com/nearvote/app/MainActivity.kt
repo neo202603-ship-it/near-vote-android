@@ -5,13 +5,16 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import com.nearvote.app.nearby.NearbyVoteConnectionManager
@@ -108,13 +111,49 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showCompose() {
         setPage()
         page.addView(topBar("설문 만들기"))
-        page.addView(infoCard("질문", "점심메뉴는?", "웹 프로토타입의 기본 템플릿을 Android 화면으로 가져온 상태입니다."))
+        page.addView(bodyText("질문과 선택지를 입력하고 주변 사람에게 바로 게시합니다."))
+
+        val questionInput = inputBox("질문", "점심메뉴는?")
+        val optionsInput = inputBox("선택지", "한식\n분식\n샐러드", multiLine = true)
+        val durationInput = inputBox("제한시간(분)", "5", numberOnly = true)
+
+        page.addView(label("빠른 템플릿"))
+        page.addView(outlineButton("점심메뉴는?") {
+            questionInput.setText("점심메뉴는?")
+            optionsInput.setText("한식\n분식\n샐러드")
+            durationInput.setText("5")
+        })
+        page.addView(outlineButton("오늘 회식은?") {
+            questionInput.setText("오늘 회식은?")
+            optionsInput.setText("삼겹살\n치킨\n이자카야\n다음에")
+            durationInput.setText("10")
+        })
+
+        page.addView(label("질문"))
+        page.addView(questionInput)
         page.addView(label("선택지"))
-        listOf("한식", "분식", "샐러드").forEach { option ->
-            page.addView(choicePill(option))
-        }
-        page.addView(infoCard("제한시간", "5분", "게시하면 가까운 참여자에게 투표 요청을 보냅니다."))
-        page.addView(primaryButton("주변에 게시하기") { publishDemoPoll() })
+        page.addView(optionsInput)
+        page.addView(label("제한시간"))
+        page.addView(durationInput)
+
+        page.addView(primaryButton("주변에 게시하기") {
+            val question = questionInput.text.toString().trim()
+            val options = optionsInput.text.toString()
+                .lines()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+            val durationMinutes = durationInput.text.toString().toIntOrNull() ?: 5
+            if (question.isBlank()) {
+                Toast.makeText(this, "질문을 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                return@primaryButton
+            }
+            if (options.size < 2) {
+                Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
+                return@primaryButton
+            }
+            publishPoll(question, options, durationMinutes.coerceIn(1, 60))
+        })
         page.addView(outlineButton("게시 흐름 미리보기") { showSimulationResult() })
         page.addView(outlineButton("홈으로") { showHome() })
     }
@@ -138,7 +177,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         setPage()
         page.addView(topBar("게시한 투표"))
         page.addView(infoCard("설문", poll.question, poll.options.joinToString(" / ")))
-        page.addView(statusCard("게시 완료", "연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."))
+        page.addView(statusCard("게시 완료", "${poll.durationMinutes}분 동안 진행 · 연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."))
         page.addView(primaryButton("참여 요청 다시 보내기") { sendPoll(poll) })
         page.addView(label("내 표도 참여할 수 있어요"))
         poll.options.forEach { option ->
@@ -165,7 +204,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showVotePoll(poll: NearbyPoll) {
         setPage()
         page.addView(topBar("투표 참여"))
-        page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerId}"))
+        page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerId} · 제한시간 ${poll.durationMinutes}분"))
         page.addView(label("선택지"))
         poll.options.forEach { option ->
             page.addView(choicePill(option) { castVote(poll, option) })
@@ -290,6 +329,31 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             textSize = 15f
             setTextColor(0xFF526158.toInt())
             setPadding(0, dp(4), 0, dp(12))
+        }
+    }
+
+    private fun inputBox(
+        label: String,
+        defaultValue: String,
+        multiLine: Boolean = false,
+        numberOnly: Boolean = false
+    ): EditText {
+        return EditText(this).apply {
+            hint = label
+            setText(defaultValue)
+            textSize = 16f
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            background = rounded(0xFFFFFFFF.toInt(), 12, 0xFFB8D8C8.toInt())
+            inputType = when {
+                numberOnly -> InputType.TYPE_CLASS_NUMBER
+                multiLine -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                else -> InputType.TYPE_CLASS_TEXT
+            }
+            if (multiLine) {
+                minLines = 3
+                gravity = Gravity.TOP
+            }
+            layoutParams = blockParams()
         }
     }
 
@@ -479,15 +543,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator.runDemo().forEach { appendLog(it) }
     }
 
-    private fun publishDemoPoll() {
+    private fun publishPoll(question: String, options: List<String>, durationMinutes: Int) {
         val poll = NearbyPoll(
             id = "poll-${System.currentTimeMillis()}",
             proposerId = selfName,
-            question = "점심메뉴는?",
-            options = listOf("한식", "분식", "샐러드")
+            question = question,
+            options = options,
+            durationMinutes = durationMinutes
         )
         activePoll = poll
         receivedVotes.clear()
+        sharedResult = null
         startNearbyConnectionTest()
         sendPoll(poll)
         showPublishedPoll(poll)
@@ -715,13 +781,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val id: String,
         val proposerId: String,
         val question: String,
-        val options: List<String>
+        val options: List<String>,
+        val durationMinutes: Int
     ) {
         fun toPayloadJson(): String {
             return JSONObject()
                 .put("pollId", id)
                 .put("question", question)
                 .put("options", JSONArray(options))
+                .put("durationMinutes", durationMinutes)
                 .toString()
         }
 
@@ -734,7 +802,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     id = payload.getString("pollId"),
                     proposerId = proposerId,
                     question = payload.getString("question"),
-                    options = options
+                    options = options,
+                    durationMinutes = payload.optInt("durationMinutes", 5)
                 )
             }
         }
