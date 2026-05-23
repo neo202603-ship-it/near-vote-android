@@ -443,6 +443,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         if (result.participantNames.isNotEmpty()) {
             page.addView(statusCard("참여자", result.participantNames.joinToString(", ")))
         }
+        if (result.participantSelections.isNotEmpty()) {
+            page.addView(label("선택 내역"))
+            result.options.forEach { option ->
+                val names = result.participantIds.mapIndexedNotNull { index, participantId ->
+                    if (result.participantSelections[participantId] == option) {
+                        result.participantNames.getOrNull(index) ?: participantId.take(8)
+                    } else {
+                        null
+                    }
+                }
+                if (names.isNotEmpty()) {
+                    page.addView(statusCard(option, names.joinToString(", ")))
+                }
+            }
+        }
         (latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId))?.let {
             page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
         }
@@ -1067,6 +1082,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         val participantIds = receivedVotes.keys.toList()
         val participantNames = participantIds.map { id -> receivedVoteNames[id] ?: id.take(8) }
+        val participantSelections = participantIds.associateWith { id -> receivedVotes.getValue(id) }
         val result = SharedResult(
             pollId = poll.id,
             proposerId = userId,
@@ -1076,13 +1092,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             counts = counts,
             participantIds = participantIds,
             participantNames = participantNames,
+            participantSelections = participantSelections,
             participantCount = receivedVotes.size,
             resultHash = SharedResult.computeHash(
                 pollId = poll.id,
                 question = poll.question,
                 options = poll.options,
                 counts = counts,
-                participantIds = participantIds
+                participantIds = participantIds,
+                participantSelections = participantSelections
             )
         )
         sharedResult = result

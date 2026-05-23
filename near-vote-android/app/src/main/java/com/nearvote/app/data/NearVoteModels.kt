@@ -39,6 +39,7 @@ data class SharedResult(
     val counts: Map<String, Int>,
     val participantIds: List<String>,
     val participantNames: List<String>,
+    val participantSelections: Map<String, String>,
     val participantCount: Int,
     val resultHash: String
 ) {
@@ -53,6 +54,7 @@ data class SharedResult(
             .put("counts", countJson)
             .put("participantIds", JSONArray(participantIds))
             .put("participantNames", JSONArray(participantNames))
+            .put("participantSelections", JSONObject(participantSelections))
             .put("participantCount", participantCount)
             .put("resultHash", resultHash)
             .toString()
@@ -70,6 +72,7 @@ data class SharedResult(
             .put("counts", countJson)
             .put("participantIds", JSONArray(participantIds))
             .put("participantNames", JSONArray(participantNames))
+            .put("participantSelections", JSONObject(participantSelections))
             .put("participantCount", participantCount)
             .put("resultHash", resultHash)
     }
@@ -79,7 +82,8 @@ data class SharedResult(
         question = question,
         options = options,
         counts = counts,
-        participantIds = participantIds
+        participantIds = participantIds,
+        participantSelections = participantSelections
     )
 
     companion object {
@@ -88,7 +92,8 @@ data class SharedResult(
             question: String,
             options: List<String>,
             counts: Map<String, Int>,
-            participantIds: List<String>
+            participantIds: List<String>,
+            participantSelections: Map<String, String> = emptyMap()
         ): String {
             val canonical = buildString {
                 append(pollId)
@@ -100,6 +105,10 @@ data class SharedResult(
                 append(options.joinToString(",") { "${it}:${counts[it] ?: 0}" })
                 append("|")
                 append(participantIds.sorted().joinToString(","))
+                if (participantSelections.isNotEmpty()) {
+                    append("|")
+                    append(participantIds.sorted().joinToString(",") { id -> "$id:${participantSelections[id].orEmpty()}" })
+                }
             }
             val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray())
             return digest.joinToString("") { "%02x".format(it) }
@@ -130,6 +139,12 @@ data class SharedResult(
             } else {
                 (0 until participantNamesArray.length()).map { participantNamesArray.getString(it) }
             }
+            val selectionsJson = payload.optJSONObject("participantSelections")
+            val participantSelections = if (selectionsJson == null) {
+                emptyMap()
+            } else {
+                participantIds.associateWith { id -> selectionsJson.optString(id) }.filterValues { it.isNotBlank() }
+            }
             return SharedResult(
                 pollId = payload.getString("pollId"),
                 proposerId = proposerId,
@@ -139,6 +154,7 @@ data class SharedResult(
                 counts = options.associateWith { countsJson.optInt(it, 0) },
                 participantIds = participantIds,
                 participantNames = participantNames,
+                participantSelections = participantSelections,
                 participantCount = payload.getInt("participantCount"),
                 resultHash = payload.getString("resultHash")
             )
