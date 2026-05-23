@@ -6,6 +6,7 @@ export function composeScreen() {
   const current = state.templates.find((template) => template.id === state.editingTemplateId) || state.templates[0];
   const isEditingMine = canDeleteTemplate(current) && current.id === state.editingTemplateId;
   const formTemplate = state.draftTemplate || (state.editingTemplateId ? current : null);
+  const selectedDuration = Number(formTemplate?.duration || 60);
 
   return `
     <section class="compose-layout">
@@ -23,13 +24,15 @@ export function composeScreen() {
         <label>선택지
           <input name="options" value="${escapeHtml(formTemplate?.options.join(', ') || '')}" placeholder="쉼표로 선택지를 구분하세요" autocomplete="off" />
         </label>
-        <label>제한 시간
-          <select name="duration">
-            <option value="30" ${formTemplate?.duration === 30 ? 'selected' : ''}>30초</option>
-            <option value="60" ${!formTemplate || formTemplate.duration === 60 ? 'selected' : ''}>1분</option>
-            <option value="180" ${formTemplate?.duration === 180 ? 'selected' : ''}>3분</option>
-          </select>
-        </label>
+        <fieldset class="duration-field">
+          <legend>제한 시간</legend>
+          <input type="hidden" name="duration" value="${selectedDuration}" />
+          <div class="duration-options" role="radiogroup" aria-label="제한 시간">
+            ${durationButton(30, '30초', selectedDuration)}
+            ${durationButton(60, '1분', selectedDuration)}
+            ${durationButton(180, '3분', selectedDuration)}
+          </div>
+        </fieldset>
         <button class="secondary-action" id="saveTemplate" type="button">${isEditingMine ? '변경 저장' : '템플릿으로 저장'}</button>
       </form>
       <div id="templateLayer">
@@ -58,6 +61,17 @@ export function bindCompose(render) {
   document.querySelector('#openTemplates').addEventListener('click', () => {
     state.templatePickerOpen = true;
     render();
+  });
+
+  document.querySelectorAll('[data-duration]').forEach((button) => {
+    button.addEventListener('click', () => {
+      form.duration.value = button.dataset.duration;
+      document.querySelectorAll('[data-duration]').forEach((item) => {
+        const isSelected = item === button;
+        item.classList.toggle('selected', isSelected);
+        item.setAttribute('aria-checked', String(isSelected));
+      });
+    });
   });
 
   document.querySelector('#saveTemplate').addEventListener('click', () => {
@@ -148,6 +162,15 @@ function templateLayer() {
         </div>
       </section>
     </div>
+  `;
+}
+
+function durationButton(value, label, selectedDuration) {
+  const selected = value === selectedDuration;
+  return `
+    <button class="${selected ? 'selected' : ''}" type="button" role="radio" aria-checked="${selected}" data-duration="${value}">
+      ${label}
+    </button>
   `;
 }
 

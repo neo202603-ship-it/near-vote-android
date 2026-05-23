@@ -342,6 +342,46 @@ select {
   color: var(--ink);
 }
 
+.duration-field {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  margin: 0;
+  padding: 0 16px;
+}
+
+.duration-field legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.duration-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 4px;
+}
+
+.duration-options button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.duration-options button.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
 .compose-form > .secondary-action {
   margin: 0 16px;
 }
