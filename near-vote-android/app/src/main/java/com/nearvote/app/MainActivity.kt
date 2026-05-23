@@ -118,19 +118,26 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         setPage()
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
+        page.addView(buttonRow(
+            compactButton("내 아이디 관리", BUTTON_OUTLINE) { showMyPage() },
+            compactButton("설정", BUTTON_OUTLINE) { showSettings() }
+        ))
+        page.addView(sectionTitle("현재 상태"))
         connectionStatusView = statusCard(if (autoConnectEnabled) "자동 연결 중" else "자동 연결 꺼짐", connectionStatusText())
         page.addView(connectionStatusView)
-        page.addView(outlineButton("내 아이디 관리") { showMyPage() })
-        page.addView(outlineButton("설정") { showSettings() })
         addCurrentSessionCards()
+        page.addView(sectionTitle("주요 작업"))
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
             showCompose()
         })
         page.addView(actionCard("참여할 투표 찾기", "근처에서 진행 중인 투표를 찾습니다.") {
             showDiscover()
         })
-        page.addView(outlineButton("지난 결과") { showHistory() })
-        page.addView(quietButton("예상 결과 미리보기") { showSimulationResult() })
+        page.addView(sectionTitle("기록과 도구"))
+        page.addView(buttonRow(
+            compactButton("지난 결과", BUTTON_OUTLINE) { showHistory() },
+            compactButton("미리보기", BUTTON_QUIET) { showSimulationResult() }
+        ))
         page.addView(quietButton("개발자 진단") { showDiagnostics() })
     }
 
@@ -233,6 +240,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(label("선택지"))
         page.addView(optionsInput)
         page.addView(label("제한시간"))
+        page.addView(durationChoiceRow(durationInput))
+        page.addView(label("직접 입력"))
         page.addView(durationInput)
 
         page.addView(primaryButton("주변에 게시하기") {
@@ -668,6 +677,65 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun durationChoiceRow(durationInput: EditText): LinearLayout {
+        return buttonRow(
+            compactButton("5분", BUTTON_CHOICE) { durationInput.setText("5") },
+            compactButton("10분", BUTTON_CHOICE) { durationInput.setText("10") },
+            compactButton("15분", BUTTON_CHOICE) { durationInput.setText("15") },
+            compactButton("30분", BUTTON_CHOICE) { durationInput.setText("30") }
+        )
+    }
+
+    private fun sectionTitle(text: String): TextView {
+        return TextView(this).apply {
+            this.text = text
+            textSize = 14f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(0xFF526158.toInt())
+            setPadding(dp(2), dp(18), 0, dp(8))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+    }
+
+    private fun buttonRow(vararg buttons: Button): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = blockParams()
+            buttons.forEachIndexed { index, button ->
+                button.layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                    if (index < buttons.lastIndex) {
+                        rightMargin = dp(8)
+                    }
+                }
+                addView(button)
+            }
+        }
+    }
+
+    private fun compactButton(text: String, style: Int, onClick: () -> Unit): Button {
+        return Button(this).apply {
+            this.text = text
+            textSize = 14f
+            setTextColor(
+                when (style) {
+                    BUTTON_PRIMARY -> 0xFFFFFFFF.toInt()
+                    BUTTON_QUIET -> 0xFF526158.toInt()
+                    else -> 0xFF176B4D.toInt()
+                }
+            )
+            background = when (style) {
+                BUTTON_PRIMARY -> rounded(0xFF176B4D.toInt(), 12)
+                BUTTON_QUIET -> rounded(0xFFE9EEE9.toInt(), 12)
+                BUTTON_CHOICE -> rounded(0xFFEAF4EF.toInt(), 12, 0xFFB8D8C8.toInt())
+                else -> rounded(0xFFFFFFFF.toInt(), 12, 0xFFB8D8C8.toInt())
+            }
+            setOnClickListener { onClick() }
+        }
+    }
+
     private fun label(text: String): TextView {
         return TextView(this).apply {
             this.text = text
@@ -1095,5 +1163,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     companion object {
         private const val NEARBY_HEARTBEAT_MS = 30_000L
         private const val CONNECTION_SYNC_DELAY_MS = 500L
+        private const val BUTTON_PRIMARY = 1
+        private const val BUTTON_OUTLINE = 2
+        private const val BUTTON_QUIET = 3
+        private const val BUTTON_CHOICE = 4
     }
 }
