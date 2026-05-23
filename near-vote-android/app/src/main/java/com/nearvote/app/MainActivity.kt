@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -513,11 +514,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun setPage() {
         val scroll = ScrollView(this).apply {
-            setBackgroundColor(0xFFF3F7F2.toInt())
+            setBackgroundColor(0xFFF4F6F1.toInt())
         }
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(28), dp(20), dp(28))
+            setPadding(dp(18), dp(24), dp(18), dp(28))
         }
         scroll.addView(page)
         setContentView(scroll)
@@ -529,7 +530,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             setPadding(0, 0, 0, dp(18))
             addView(TextView(context).apply {
                 text = title
-                textSize = 30f
+                textSize = 31f
+                setTextColor(0xFF10251D.toInt())
                 setTypeface(typeface, Typeface.BOLD)
             })
             addView(TextView(context).apply {
@@ -595,16 +597,40 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun actionCard(title: String, subtitle: String, onClick: () -> Unit): TextView {
-        return TextView(this).apply {
-            text = "$title\n$subtitle"
-            textSize = 17f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(0xFF123126.toInt())
-            setPadding(dp(20), dp(18), dp(20), dp(18))
-            background = rounded(0xFFFFFFFF.toInt(), 14)
+    private fun actionCard(title: String, subtitle: String, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, dp(16), 0)
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFE0E7DD.toInt())
             setOnClickListener { onClick() }
             layoutParams = blockParams()
+            addView(View(context).apply {
+                background = rounded(0xFF176B4D.toInt(), 16)
+                layoutParams = LinearLayout.LayoutParams(dp(6), ViewGroup.LayoutParams.MATCH_PARENT)
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(16), dp(12), dp(16))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = title
+                    textSize = 18f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    textSize = 14f
+                    setTextColor(0xFF526158.toInt())
+                    setPadding(0, dp(5), 0, 0)
+                })
+            })
+            addView(TextView(context).apply {
+                text = "›"
+                textSize = 28f
+                setTextColor(0xFF8AA093.toInt())
+            })
         }
     }
 
@@ -658,22 +684,39 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun resultRow(option: String, count: Int, percent: Int): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(14))
-            background = rounded(0xFFFFFFFF.toInt(), 14)
+            setPadding(dp(18), dp(15), dp(18), dp(15))
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFE0E7DD.toInt())
             layoutParams = blockParams()
-            addView(TextView(context).apply {
-                text = "$option  ${count}명 · $percent%"
-                textSize = 17f
-                setTypeface(typeface, Typeface.BOLD)
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(context).apply {
+                    text = option
+                    textSize = 17f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(TextView(context).apply {
+                    text = "${count}명 · $percent%"
+                    textSize = 15f
+                    setTextColor(0xFF176B4D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                })
             })
-            addView(View(context).apply {
-                background = rounded(0xFF7DB79D.toInt(), 8)
-                layoutParams = LinearLayout.LayoutParams(
-                    dp(8 + percent * 2),
-                    dp(8)
-                ).apply {
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                background = rounded(0xFFE7ECE5.toInt(), 8)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(10)).apply {
                     topMargin = dp(10)
                 }
+                addView(View(context).apply {
+                    background = rounded(0xFF3D8B67.toInt(), 8)
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, percent.coerceIn(0, 100).toFloat())
+                })
+                addView(FrameLayout(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, (100 - percent.coerceIn(0, 100)).toFloat())
+                })
             })
         }
     }
@@ -683,8 +726,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             this.text = text
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(0xFF123126.toInt())
             setPadding(dp(18), dp(12), dp(18), dp(12))
-            background = rounded(0xFFEAF4EF.toInt(), 24)
+            background = rounded(0xFFEAF4EF.toInt(), 24, 0xFFC6DED1.toInt())
             if (onClick != null) {
                 setOnClickListener { onClick() }
             }
@@ -733,6 +778,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun compactButton(text: String, style: Int, onClick: () -> Unit): Button {
         return Button(this).apply {
             this.text = text
+            isAllCaps = false
             textSize = 14f
             setTextColor(
                 when (style) {
@@ -763,8 +809,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun primaryButton(text: String, onClick: () -> Unit): Button {
         return Button(this).apply {
             this.text = text
+            isAllCaps = false
             setTextColor(0xFFFFFFFF.toInt())
-            background = rounded(0xFF176B4D.toInt(), 12)
+            background = rounded(0xFF176B4D.toInt(), 14)
             setOnClickListener { onClick() }
             layoutParams = blockParams()
         }
@@ -773,8 +820,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun outlineButton(text: String, onClick: () -> Unit): Button {
         return Button(this).apply {
             this.text = text
+            isAllCaps = false
             setTextColor(0xFF176B4D.toInt())
-            background = rounded(0xFFFFFFFF.toInt(), 12, 0xFFB8D8C8.toInt())
+            background = rounded(0xFFFFFFFF.toInt(), 14, 0xFFB8D8C8.toInt())
             setOnClickListener { onClick() }
             layoutParams = blockParams()
         }
@@ -783,8 +831,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun quietButton(text: String, onClick: () -> Unit): Button {
         return Button(this).apply {
             this.text = text
+            isAllCaps = false
             setTextColor(0xFF526158.toInt())
-            background = rounded(0xFFE9EEE9.toInt(), 12)
+            background = rounded(0xFFE9EEE9.toInt(), 14)
             setOnClickListener { onClick() }
             layoutParams = blockParams()
         }
