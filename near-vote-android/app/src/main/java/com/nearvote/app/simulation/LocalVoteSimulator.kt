@@ -60,6 +60,34 @@ class LocalVoteSimulator(
         }
     }
 
+    fun preview(): LocalSimulationPreview {
+        val votes = participantIds.mapIndexed { index, participantId ->
+            LocalVote(
+                voterId = participantId,
+                option = options[index % options.size],
+                voteHash = sha256("$question:$participantId:${options[index % options.size]}")
+            )
+        }
+        val counts = votes.groupingBy { it.option }.eachCount()
+        return LocalSimulationPreview(
+            question = question,
+            options = options,
+            participantIds = participantIds,
+            resultLines = options.map { option -> "$option ${counts[option] ?: 0}표" },
+            receiptCount = votes.size,
+            resultHash = sha256(votes.joinToString("|") { "${it.voterId}:${it.option}:${it.voteHash}" }).take(16)
+        )
+    }
+
+    data class LocalSimulationPreview(
+        val question: String,
+        val options: List<String>,
+        val participantIds: List<String>,
+        val resultLines: List<String>,
+        val receiptCount: Int,
+        val resultHash: String
+    )
+
     private data class LocalVote(
         val voterId: String,
         val option: String,
