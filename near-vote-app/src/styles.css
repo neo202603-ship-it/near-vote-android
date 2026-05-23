@@ -93,11 +93,18 @@ h2 {
 }
 
 .topnav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin: 0 -8px 18px;
+  border-bottom: 1px solid rgba(217, 223, 215, 0.82);
+  padding: 8px;
+  background: rgba(245, 247, 243, 0.9);
+  backdrop-filter: blur(12px);
 }
 
 .primary-tabs {
