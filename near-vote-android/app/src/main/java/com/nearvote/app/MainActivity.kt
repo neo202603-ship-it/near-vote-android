@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     override fun onEndpointConnected(endpointId: String) {
         appendLog("연결됨: $endpointId")
+        syncCurrentSessionToPeers()
     }
 
     override fun onEndpointDisconnected(endpointId: String) {
@@ -706,6 +707,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         updateConnectionStatus()
     }
 
+    private fun syncCurrentSessionToPeers() {
+        handler.postDelayed({
+            val result = sharedResult
+            val poll = activePoll
+            when {
+                result != null -> sendResultBlock(result)
+                poll != null && !poll.hasEnded() -> {
+                    appendLog("새 연결 기기에 진행 중인 투표를 자동 전달")
+                    sendPoll(poll)
+                }
+            }
+        }, CONNECTION_SYNC_DELAY_MS)
+    }
+
     private fun startNearbyHeartbeat() {
         handler.removeCallbacks(nearbyHeartbeat)
         if (!autoConnectEnabled) return
@@ -964,6 +979,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sharedResult = result
         sharedResultPollIds += poll.id
         store.saveResult(result)
+        sendResultBlock(result)
+        showSharedResult(result)
+    }
+
+    private fun sendResultBlock(result: SharedResult) {
+        appendLog("새 연결 기기에 공유 결과를 자동 전달")
         nearby.sendToAll(
             NearVoteMessage(
                 type = NearVoteMessageType.RESULT_BLOCK,
@@ -971,7 +992,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 payloadJson = result.toPayloadJson()
             ).toJson()
         )
-        showSharedResult(result)
     }
 
     private fun scheduleResultShare(poll: NearbyPoll) {
@@ -1033,5 +1053,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     companion object {
         private const val NEARBY_HEARTBEAT_MS = 30_000L
+        private const val CONNECTION_SYNC_DELAY_MS = 500L
     }
 }
