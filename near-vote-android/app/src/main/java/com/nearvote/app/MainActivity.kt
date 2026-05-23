@@ -1,7 +1,6 @@
 package com.nearvote.app
 
 import android.Manifest
-import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -20,11 +19,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import com.nearvote.app.data.NearVoteStore
+import com.nearvote.app.data.NearbyPoll
+import com.nearvote.app.data.SharedResult
+import com.nearvote.app.data.VoteReceipt
 import com.nearvote.app.nearby.NearbyVoteConnectionManager
 import com.nearvote.app.protocol.NearVoteMessage
 import com.nearvote.app.protocol.NearVoteMessageType
 import com.nearvote.app.simulation.LocalVoteSimulator
-import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
 import kotlin.math.abs
@@ -35,6 +37,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var connectionStatusView: TextView
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
+    private lateinit var store: NearVoteStore
     private val handler = Handler(Looper.getMainLooper())
     private var selfName = ""
     private var connectedCount = 0
@@ -55,7 +58,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        selfName = loadIdentity()
+        store = NearVoteStore(this)
+        selfName = store.loadIdentity { suggestIdentity() }
         nearby = NearbyVoteConnectionManager(this, selfName, this)
         simulator = LocalVoteSimulator(selfName)
         requestNearbyPermissions()
@@ -119,7 +123,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showHistory() {
-        val results = loadResultHistory()
+        val results = store.loadResultHistory()
         setPage()
         page.addView(topBar("지난 결과"))
         if (results.isEmpty()) {
@@ -311,7 +315,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(resultRow(option, count, count * 100 / total))
         }
         page.addView(statusCard("검증 정보", "참여자 ${result.participantCount}명 · 결과 해시 ${result.resultHash.take(16)}"))
-        (latestReceipt?.takeIf { it.pollId == result.pollId } ?: loadReceipt(result.pollId))?.let {
+        (latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId))?.let {
             page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
         }
         page.addView(outlineButton("홈으로") { showHome() })
@@ -614,20 +618,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator.runDemo().forEach { appendLog(it) }
     }
 
-    private fun loadIdentity(): String {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val saved = prefs.getString(KEY_IDENTITY, null)
-        if (!saved.isNullOrBlank()) return saved
-        val suggested = suggestIdentity()
-        prefs.edit().putString(KEY_IDENTITY, suggested).apply()
-        return suggested
-    }
-
     private fun saveIdentity(nextIdentity: String) {
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_IDENTITY, nextIdentity)
-            .apply()
+        store.saveIdentity(nextIdentity)
         selfName = nextIdentity
         resetSessionForIdentity()
     }
@@ -652,46 +644,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val objects = listOf("머그컵", "가방", "연필", "나침반", "우산", "노트", "램프", "시계")
         val seed = abs((Build.MODEL + System.currentTimeMillis()).hashCode())
         return adjectives[seed % adjectives.size] + objects[(seed / adjectives.size) % objects.size]
-    }
-
-    private fun saveReceipt(receipt: VoteReceipt) {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val receipts = JSONObject(prefs.getString(KEY_RECEIPTS, "{}").orEmpty().ifBlank { "{}" })
-        receipts.put(receipt.pollId, receipt.toJson())
-        prefs.edit().putString(KEY_RECEIPTS, receipts.toString()).apply()
-    }
-
-    private fun loadReceipt(pollId: String): VoteReceipt? {
-        val raw = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_RECEIPTS, "{}")
-            .orEmpty()
-            .ifBlank { "{}" }
-        val receipts = JSONObject(raw)
-        return receipts.optJSONObject(pollId)?.let { VoteReceipt.fromJson(it) }
-    }
-
-    private fun saveResult(result: SharedResult) {
-        val existing = loadResultHistory()
-            .filterNot { it.pollId == result.pollId }
-            .toMutableList()
-        existing.add(0, result)
-        val results = JSONArray()
-        existing.take(MAX_HISTORY_COUNT).forEach { results.put(it.toHistoryJson()) }
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_RESULTS, results.toString())
-            .apply()
-    }
-
-    private fun loadResultHistory(): List<SharedResult> {
-        val raw = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_RESULTS, "[]")
-            .orEmpty()
-            .ifBlank { "[]" }
-        val results = JSONArray(raw)
-        return (0 until results.length()).mapNotNull { index ->
-            runCatching { SharedResult.fromHistoryJson(results.getJSONObject(index)) }.getOrNull()
-        }
     }
 
     private fun publishPoll(question: String, options: List<String>, durationMinutes: Int) {
@@ -800,7 +752,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 )
                 if (receipt.voterId == selfName) {
                     latestReceipt = receipt
-                    saveReceipt(receipt)
+                    store.saveReceipt(receipt)
                     incomingPoll?.takeIf { it.id == receipt.pollId }?.let { poll ->
                         runOnUiThread { showVoteSubmitted(poll, submittedVotes[receipt.pollId] ?: "선택 완료") }
                     }
@@ -813,7 +765,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 }
                 if (result.proposerId == selfName) return
                 sharedResult = result
-                saveResult(result)
+                store.saveResult(result)
                 runOnUiThread { showSharedResult(result) }
             }
             else -> Unit
@@ -854,7 +806,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         )
         sharedResult = result
         sharedResultPollIds += poll.id
-        saveResult(result)
+        store.saveResult(result)
         nearby.sendToAll(
             NearVoteMessage(
                 type = NearVoteMessageType.RESULT_BLOCK,
@@ -922,157 +874,4 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private data class VoteReceipt(
-        val pollId: String,
-        val voterId: String,
-        val voteHash: String
-    ) {
-        fun toJson(): JSONObject {
-            return JSONObject()
-                .put("pollId", pollId)
-                .put("voterId", voterId)
-                .put("voteHash", voteHash)
-        }
-
-        companion object {
-            fun fromJson(json: JSONObject): VoteReceipt {
-                return VoteReceipt(
-                    pollId = json.getString("pollId"),
-                    voterId = json.getString("voterId"),
-                    voteHash = json.getString("voteHash")
-                )
-            }
-        }
-    }
-
-    private data class SharedResult(
-        val pollId: String,
-        val proposerId: String,
-        val question: String,
-        val options: List<String>,
-        val counts: Map<String, Int>,
-        val participantCount: Int,
-        val resultHash: String
-    ) {
-        fun toPayloadJson(): String {
-            val countJson = JSONObject()
-            counts.forEach { (option, count) -> countJson.put(option, count) }
-            return JSONObject()
-                .put("pollId", pollId)
-                .put("question", question)
-                .put("options", JSONArray(options))
-                .put("counts", countJson)
-                .put("participantCount", participantCount)
-                .put("resultHash", resultHash)
-                .toString()
-        }
-
-        fun toHistoryJson(): JSONObject {
-            val countJson = JSONObject()
-            counts.forEach { (option, count) -> countJson.put(option, count) }
-            return JSONObject()
-                .put("pollId", pollId)
-                .put("proposerId", proposerId)
-                .put("question", question)
-                .put("options", JSONArray(options))
-                .put("counts", countJson)
-                .put("participantCount", participantCount)
-                .put("resultHash", resultHash)
-        }
-
-        companion object {
-            fun fromPayload(proposerId: String, payloadJson: String): SharedResult {
-                val payload = JSONObject(payloadJson)
-                val optionsArray = payload.getJSONArray("options")
-                val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
-                val countsJson = payload.getJSONObject("counts")
-                return SharedResult(
-                    pollId = payload.getString("pollId"),
-                    proposerId = proposerId,
-                    question = payload.getString("question"),
-                    options = options,
-                    counts = options.associateWith { countsJson.optInt(it, 0) },
-                    participantCount = payload.getInt("participantCount"),
-                    resultHash = payload.getString("resultHash")
-                )
-            }
-
-            fun fromHistoryJson(payload: JSONObject): SharedResult {
-                val optionsArray = payload.getJSONArray("options")
-                val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
-                val countsJson = payload.getJSONObject("counts")
-                return SharedResult(
-                    pollId = payload.getString("pollId"),
-                    proposerId = payload.getString("proposerId"),
-                    question = payload.getString("question"),
-                    options = options,
-                    counts = options.associateWith { countsJson.optInt(it, 0) },
-                    participantCount = payload.getInt("participantCount"),
-                    resultHash = payload.getString("resultHash")
-                )
-            }
-        }
-    }
-
-    private data class NearbyPoll(
-        val id: String,
-        val proposerId: String,
-        val question: String,
-        val options: List<String>,
-        val durationMinutes: Int,
-        val endAtMillis: Long
-    ) {
-        fun toPayloadJson(): String {
-            return JSONObject()
-                .put("pollId", id)
-                .put("question", question)
-                .put("options", JSONArray(options))
-                .put("durationMinutes", durationMinutes)
-                .put("endAtMillis", endAtMillis)
-                .toString()
-        }
-
-        fun hasEnded(): Boolean = System.currentTimeMillis() >= endAtMillis
-
-        fun remainingText(): String {
-            val remainingMillis = (endAtMillis - System.currentTimeMillis()).coerceAtLeast(0L)
-            val remainingMinutes = ((remainingMillis + 59_999L) / 60_000L).coerceAtLeast(0L)
-            return if (remainingMinutes == 0L) "곧 종료" else "${remainingMinutes}분 남음"
-        }
-
-        fun statusText(connectedCount: Int): String {
-            return if (hasEnded()) {
-                "제한시간 종료 · 연결된 기기 ${connectedCount}대"
-            } else {
-                "${remainingText()} · 연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."
-            }
-        }
-
-        companion object {
-            fun fromPayload(proposerId: String, payloadJson: String): NearbyPoll {
-                val payload = JSONObject(payloadJson)
-                val optionsArray = payload.getJSONArray("options")
-                val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
-                return NearbyPoll(
-                    id = payload.getString("pollId"),
-                    proposerId = proposerId,
-                    question = payload.getString("question"),
-                    options = options,
-                    durationMinutes = payload.optInt("durationMinutes", 5),
-                    endAtMillis = payload.optLong(
-                        "endAtMillis",
-                        System.currentTimeMillis() + payload.optInt("durationMinutes", 5) * 60_000L
-                    )
-                )
-            }
-        }
-    }
-
-    companion object {
-        private const val PREFS_NAME = "near_vote_prefs"
-        private const val KEY_IDENTITY = "identity"
-        private const val KEY_RECEIPTS = "receipts"
-        private const val KEY_RESULTS = "results"
-        private const val MAX_HISTORY_COUNT = 20
-    }
 }
