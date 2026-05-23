@@ -13,6 +13,7 @@ Android Native Kotlin 기반 Nearby Connections PoC 프로젝트입니다.
 - 연결 요청/수락
 - UTF-8 JSON 텍스트 payload 송수신
 - Poll/Vote/Receipt/Result/Gossip 메시지 타입 초안
+- 한 기기에서 설문/투표/영수증/결과 블록을 확인하는 로컬 시뮬레이션
 
 ## 열기
 
@@ -22,9 +23,18 @@ Android Studio에서 이 폴더를 열고 Gradle sync를 실행합니다.
 /Users/neo/Documents/여러가지/near-vote-android
 ```
 
-이 로컬 환경에는 `gradle` 명령이 없어 터미널 빌드는 아직 확인하지 못했습니다.
+Android Studio의 내장 JBR을 사용하면 터미널에서도 Gradle Wrapper로 빌드할 수 있습니다.
+
+```sh
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:assembleDebug
+```
+
+## 한 기기 테스트
+
+안드로이드 기기가 1대뿐이면 `로컬 시뮬레이션 실행`을 눌러 개발을 이어갑니다.
+이 모드는 가상 참여자 3명을 만들고 설문 생성, 투표, 영수증, 결과 블록 로그를 한 번에 보여줍니다.
+실제 무선 연결 검증은 아니지만, 두 번째 기기를 확보하기 전까지 앱 흐름과 원장 메시지 구조를 다듬는 데 사용합니다.
 
 ## 참고
 
 - Nearby Connections 공식 시작 문서: https://developers.google.com/nearby/connections/android/get-started
-
