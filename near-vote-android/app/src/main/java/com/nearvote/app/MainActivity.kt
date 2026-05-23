@@ -16,7 +16,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import com.nearvote.app.nearby.NearbyVoteConnectionManager
 import com.nearvote.app.protocol.NearVoteMessage
+import com.nearvote.app.protocol.NearVoteMessageType
 import com.nearvote.app.simulation.LocalVoteSimulator
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
@@ -26,6 +29,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var simulator: LocalVoteSimulator
     private val selfName = "NearVote-${Build.MODEL}"
     private var connectedCount = 0
+    private var activePoll: NearbyPoll? = null
+    private var incomingPoll: NearbyPoll? = null
+    private val receivedVotes = linkedMapOf<String, String>()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -51,6 +57,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     override fun onMessage(endpointId: String, message: String) {
         appendLog("$endpointId 에서 메시지 수신: $message")
+        handleNearbyMessage(message)
     }
 
     override fun onEndpointFound(endpointId: String, endpointName: String) {
@@ -82,6 +89,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         })
         page.addView(statusCard("지금은 한 기기 테스트 중", "실제 연결 전까지는 시뮬레이션으로 설문 흐름을 확인합니다."))
         page.addView(outlineButton("예상 결과 미리보기") { showSimulationResult() })
+        activePoll?.let { poll ->
+            page.addView(outlineButton("게시한 투표 보기") { showPublishedPoll(poll) })
+        }
+        incomingPoll?.let { poll ->
+            page.addView(outlineButton("받은 투표 참여하기") { showVotePoll(poll) })
+        }
         page.addView(quietButton("개발자 진단") { showDiagnostics() })
     }
 
@@ -94,16 +107,68 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(choicePill(option))
         }
         page.addView(infoCard("제한시간", "5분", "게시하면 가까운 참여자에게 투표 요청을 보냅니다."))
-        page.addView(primaryButton("게시 흐름 미리보기") { showSimulationResult() })
+        page.addView(primaryButton("주변에 게시하기") { publishDemoPoll() })
+        page.addView(outlineButton("게시 흐름 미리보기") { showSimulationResult() })
         page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showDiscover() {
         setPage()
         page.addView(topBar("참여할 투표 찾기"))
-        page.addView(emptyCard("아직 찾은 투표 없음", "두 번째 Android 기기가 생기면 이곳에 주변 투표가 표시됩니다."))
+        val poll = incomingPoll
+        if (poll == null) {
+            page.addView(emptyCard("아직 찾은 투표 없음", "두 기기에서 주변 연결 시작을 누른 뒤, 다른 기기에서 설문을 게시해보세요."))
+        } else {
+            page.addView(infoCard("받은 설문", poll.question, poll.options.joinToString(" / ")))
+            page.addView(primaryButton("투표 참여하기") { showVotePoll(poll) })
+        }
         page.addView(primaryButton("주변 연결 시작") { showDiagnostics(autoStart = true) })
         page.addView(outlineButton("테스트 투표 참여해보기") { showSimulationResult() })
+        page.addView(outlineButton("홈으로") { showHome() })
+    }
+
+    private fun showPublishedPoll(poll: NearbyPoll) {
+        setPage()
+        page.addView(topBar("게시한 투표"))
+        page.addView(infoCard("설문", poll.question, poll.options.joinToString(" / ")))
+        page.addView(statusCard("게시 완료", "연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."))
+        page.addView(primaryButton("참여 요청 다시 보내기") { sendPoll(poll) })
+        page.addView(label("내 표도 참여할 수 있어요"))
+        poll.options.forEach { option ->
+            page.addView(choicePill(option) { castVote(poll, option) })
+        }
+        page.addView(label("현재 집계"))
+        if (receivedVotes.isEmpty()) {
+            page.addView(emptyCard("아직 투표 없음", "참여자가 선택하면 여기에 집계됩니다."))
+        } else {
+            poll.options.forEach { option ->
+                val count = receivedVotes.values.count { it == option }
+                val percent = count * 100 / receivedVotes.size
+                page.addView(resultRow(option, count, percent))
+            }
+            page.addView(statusCard("참여자 ${receivedVotes.size}명", receivedVotes.keys.joinToString(", ")))
+        }
+        page.addView(outlineButton("주변 연결 다시 시작") { startNearbyConnectionTest() })
+        page.addView(outlineButton("홈으로") { showHome() })
+    }
+
+    private fun showVotePoll(poll: NearbyPoll) {
+        setPage()
+        page.addView(topBar("투표 참여"))
+        page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerId}"))
+        page.addView(label("선택지"))
+        poll.options.forEach { option ->
+            page.addView(choicePill(option) { castVote(poll, option) })
+        }
+        page.addView(outlineButton("주변 투표로") { showDiscover() })
+        page.addView(outlineButton("홈으로") { showHome() })
+    }
+
+    private fun showVoteSubmitted(poll: NearbyPoll, option: String) {
+        setPage()
+        page.addView(topBar("투표 완료"))
+        page.addView(statusCard("내 표를 보냈습니다", "${poll.question} · $option"))
+        page.addView(bodyText("제안자 기기에 투표 메시지가 전달되면 결과 집계에 반영됩니다."))
         page.addView(outlineButton("홈으로") { showHome() })
     }
 
@@ -181,6 +246,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 setTextColor(0xFF526158.toInt())
                 setPadding(0, dp(8), 0, 0)
             })
+        }
+    }
+
+    private fun bodyText(text: String): TextView {
+        return TextView(this).apply {
+            this.text = text
+            textSize = 15f
+            setTextColor(0xFF526158.toInt())
+            setPadding(0, dp(4), 0, dp(12))
         }
     }
 
@@ -287,13 +361,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun choicePill(text: String): TextView {
+    private fun choicePill(text: String, onClick: (() -> Unit)? = null): TextView {
         return TextView(this).apply {
             this.text = text
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
             setPadding(dp(18), dp(12), dp(18), dp(12))
             background = rounded(0xFFEAF4EF.toInt(), 24)
+            if (onClick != null) {
+                setOnClickListener { onClick() }
+            }
             layoutParams = blockParams()
         }
     }
@@ -367,6 +444,79 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator.runDemo().forEach { appendLog(it) }
     }
 
+    private fun publishDemoPoll() {
+        val poll = NearbyPoll(
+            id = "poll-${System.currentTimeMillis()}",
+            proposerId = selfName,
+            question = "점심메뉴는?",
+            options = listOf("한식", "분식", "샐러드")
+        )
+        activePoll = poll
+        receivedVotes.clear()
+        startNearbyConnectionTest()
+        sendPoll(poll)
+        showPublishedPoll(poll)
+    }
+
+    private fun sendPoll(poll: NearbyPoll) {
+        nearby.sendToAll(
+            NearVoteMessage(
+                type = NearVoteMessageType.POLL,
+                senderId = selfName,
+                payloadJson = poll.toPayloadJson()
+            ).toJson()
+        )
+    }
+
+    private fun castVote(poll: NearbyPoll, option: String) {
+        nearby.sendToAll(
+            NearVoteMessage(
+                type = NearVoteMessageType.VOTE,
+                senderId = selfName,
+                payloadJson = JSONObject()
+                    .put("pollId", poll.id)
+                    .put("option", option)
+                    .put("voterId", selfName)
+                    .toString()
+            ).toJson()
+        )
+        if (poll.id == activePoll?.id) {
+            receivedVotes[selfName] = option
+            showPublishedPoll(poll)
+        } else {
+            showVoteSubmitted(poll, option)
+        }
+    }
+
+    private fun handleNearbyMessage(rawMessage: String) {
+        val message = runCatching { NearVoteMessage.fromJson(rawMessage) }.getOrElse {
+            appendLog("알 수 없는 메시지 형식")
+            return
+        }
+        when (message.type) {
+            NearVoteMessageType.POLL -> {
+                val poll = runCatching { NearbyPoll.fromPayload(message.senderId, message.payloadJson) }.getOrElse {
+                    appendLog("설문 메시지를 읽지 못함")
+                    return
+                }
+                if (poll.proposerId == selfName) return
+                incomingPoll = poll
+                runOnUiThread { showVotePoll(poll) }
+            }
+            NearVoteMessageType.VOTE -> {
+                val payload = JSONObject(message.payloadJson)
+                val poll = activePoll ?: return
+                if (payload.optString("pollId") != poll.id) return
+                val voterId = payload.optString("voterId", message.senderId)
+                val option = payload.optString("option")
+                if (option.isBlank()) return
+                receivedVotes[voterId] = option
+                runOnUiThread { showPublishedPoll(poll) }
+            }
+            else -> Unit
+        }
+    }
+
     private fun requestNearbyPermissions() {
         val permissions = buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -408,5 +558,34 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private data class NearbyPoll(
+        val id: String,
+        val proposerId: String,
+        val question: String,
+        val options: List<String>
+    ) {
+        fun toPayloadJson(): String {
+            return JSONObject()
+                .put("pollId", id)
+                .put("question", question)
+                .put("options", JSONArray(options))
+                .toString()
+        }
+
+        companion object {
+            fun fromPayload(proposerId: String, payloadJson: String): NearbyPoll {
+                val payload = JSONObject(payloadJson)
+                val optionsArray = payload.getJSONArray("options")
+                val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
+                return NearbyPoll(
+                    id = payload.getString("pollId"),
+                    proposerId = proposerId,
+                    question = payload.getString("question"),
+                    options = options
+                )
+            }
+        }
     }
 }

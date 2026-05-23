@@ -1,5 +1,7 @@
 package com.nearvote.app.protocol
 
+import org.json.JSONObject
+
 enum class NearVoteMessageType {
     POLL,
     VOTE,
@@ -20,6 +22,15 @@ data class NearVoteMessage(
     }
 
     companion object {
+        fun fromJson(json: String): NearVoteMessage {
+            val parsed = JSONObject(json)
+            return NearVoteMessage(
+                type = NearVoteMessageType.valueOf(parsed.getString("type")),
+                senderId = parsed.getString("senderId"),
+                payloadJson = parsed.getString("payloadJson")
+            )
+        }
+
         fun ping(senderId: String): NearVoteMessage {
             return NearVoteMessage(
                 type = NearVoteMessageType.PING,
@@ -29,4 +40,3 @@ data class NearVoteMessage(
         }
     }
 }
-
