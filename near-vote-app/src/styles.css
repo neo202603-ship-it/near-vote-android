@@ -7,6 +7,11 @@
   --panel: #ffffff;
   --accent: #006d77;
   --accent-strong: #004f57;
+  --action: #b84a3a;
+  --action-strong: #8f3328;
+  --menu-active: #243b53;
+  --select: #0f766e;
+  --select-soft: #dff3ef;
   --soft: #e5f3ef;
   --warn: #b84a3a;
   --shadow: 0 16px 46px rgba(22, 36, 30, 0.09);
@@ -166,13 +171,34 @@ h2 {
 .topnav button {
   min-width: 72px;
   padding: 0 13px;
+  color: var(--muted);
 }
 
-.topnav button.active,
+.topnav button.active {
+  border: 0;
+  background: var(--menu-active);
+  color: #fff;
+}
+
 .primary-action {
   border: 0;
-  background: var(--accent);
+  background: var(--action);
   color: #fff;
+}
+
+.primary-action:hover {
+  background: var(--action-strong);
+}
+
+.secondary-action {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--accent-strong);
+}
+
+.secondary-action:hover,
+.ghost-button:hover {
+  background: var(--soft);
 }
 
 .primary-action,
@@ -378,7 +404,7 @@ select {
 }
 
 .duration-options button.selected {
-  background: var(--accent);
+  background: var(--select);
   color: #fff;
 }
 
@@ -473,16 +499,17 @@ select {
 .template-actions button,
 .choice-grid button {
   min-height: 38px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(15, 118, 110, 0.3);
   border-radius: 8px;
-  background: #fbfcfa;
-  color: var(--ink);
+  background: var(--select-soft);
+  color: var(--select);
   font-weight: 900;
   cursor: pointer;
 }
 
 .template-actions .danger-action {
   border-color: rgba(184, 74, 58, 0.36);
+  background: #fff7f5;
   color: var(--warn);
 }
 
@@ -498,9 +525,19 @@ button:disabled {
 
 .choice-grid button {
   min-height: 64px;
-  border-color: var(--accent);
-  background: var(--soft);
-  color: var(--accent-strong);
+  border-color: rgba(15, 118, 110, 0.42);
+  background: var(--select-soft);
+  color: var(--select);
+}
+
+.choice-grid button:hover,
+.template-actions button:hover,
+.duration-options button:hover {
+  background: #ccebe5;
+}
+
+.duration-options button.selected:hover {
+  background: var(--select);
 }
 
 .list {
@@ -581,7 +618,7 @@ button:disabled {
 .history-footer .ghost-button {
   min-height: 34px;
   border: 1px solid var(--line);
-  background: #fbfcfa;
+  background: #fff;
   white-space: nowrap;
 }
 
