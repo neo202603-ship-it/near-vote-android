@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     override fun onMessage(endpointId: String, message: String) {
         appendLog("$endpointId 에서 메시지 수신: $message")
-        handleNearbyMessage(message)
+        handleNearbyMessage(endpointId, message)
     }
 
     override fun onEndpointFound(endpointId: String, endpointName: String) {
@@ -876,6 +876,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         if (poll.id == activePoll?.id) {
             receivedVotes[userId] = option
             receivedVoteNames[userId] = selfName
+            saveLocalReceipt(poll, option)
             showPublishedPoll(poll)
         } else {
             submittedVotes[poll.id] = option
@@ -883,7 +884,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun handleNearbyMessage(rawMessage: String) {
+    private fun handleNearbyMessage(endpointId: String, rawMessage: String) {
         val message = runCatching { NearVoteMessage.fromJson(rawMessage) }.getOrElse {
             appendLog("알 수 없는 메시지 형식")
             return
@@ -917,12 +918,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 }
                 if (receivedVotes.containsKey(voterId)) {
                     appendLog("중복 투표 무시: $voterId")
-                    sendReceipt(poll, voterId, voterName, receivedVotes.getValue(voterId))
+                    sendReceipt(endpointId, poll, voterId, voterName, receivedVotes.getValue(voterId))
                     return
                 }
                 receivedVotes[voterId] = option
                 receivedVoteNames[voterId] = voterName
-                sendReceipt(poll, voterId, voterName, option)
+                sendReceipt(endpointId, poll, voterId, voterName, option)
                 runOnUiThread { showPublishedPoll(poll) }
             }
             NearVoteMessageType.RECEIPT -> {
@@ -960,9 +961,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun sendReceipt(poll: NearbyPoll, voterId: String, voterName: String, option: String) {
+    private fun saveLocalReceipt(poll: NearbyPoll, option: String) {
+        val receipt = VoteReceipt(
+            pollId = poll.id,
+            voterId = userId,
+            voterName = selfName,
+            voteHash = hash("${poll.id}:$userId:$option")
+        )
+        latestReceipt = receipt
+        store.saveReceipt(receipt)
+    }
+
+    private fun sendReceipt(endpointId: String, poll: NearbyPoll, voterId: String, voterName: String, option: String) {
         val voteHash = hash("${poll.id}:$voterId:$option")
-        nearby.sendToAll(
+        nearby.sendTo(
+            endpointId,
             NearVoteMessage(
                 type = NearVoteMessageType.RECEIPT,
                 senderId = userId,

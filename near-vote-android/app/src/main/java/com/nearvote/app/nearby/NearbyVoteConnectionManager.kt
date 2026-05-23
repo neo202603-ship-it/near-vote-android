@@ -158,6 +158,17 @@ class NearbyVoteConnectionManager(
         listener.onLog("${connectedEndpoints.size}대에 메시지 전송")
     }
 
+    fun sendTo(endpointId: String, message: String) {
+        if (!connectedEndpoints.contains(endpointId)) {
+            listener.onLog("대상 기기가 연결되어 있지 않음: ${endpointNames[endpointId] ?: endpointId}")
+            return
+        }
+        val payload = Payload.fromBytes(message.toByteArray(StandardCharsets.UTF_8))
+        client.sendPayload(endpointId, payload)
+            .addOnSuccessListener { listener.onLog("${endpointNames[endpointId] ?: endpointId}에 메시지 전송") }
+            .addOnFailureListener { listener.onLog("전송 실패: ${it.message}") }
+    }
+
     fun stop() {
         client.stopAdvertising()
         client.stopDiscovery()
