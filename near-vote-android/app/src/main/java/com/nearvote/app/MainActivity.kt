@@ -5,6 +5,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -31,6 +33,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var connectionStatusView: TextView
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
+    private val handler = Handler(Looper.getMainLooper())
     private val selfName = "NearVote-${Build.MODEL}"
     private var connectedCount = 0
     private var activePoll: NearbyPoll? = null
@@ -39,6 +42,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private var sharedResult: SharedResult? = null
     private val receivedVotes = linkedMapOf<String, String>()
     private val submittedVotes = linkedMapOf<String, String>()
+    private val sharedResultPollIds = linkedSetOf<String>()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -56,6 +60,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         nearby.stop()
         super.onDestroy()
     }
@@ -174,14 +179,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showPublishedPoll(poll: NearbyPoll) {
+        val ended = poll.hasEnded()
         setPage()
         page.addView(topBar("게시한 투표"))
         page.addView(infoCard("설문", poll.question, poll.options.joinToString(" / ")))
-        page.addView(statusCard("게시 완료", "${poll.durationMinutes}분 동안 진행 · 연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."))
-        page.addView(primaryButton("참여 요청 다시 보내기") { sendPoll(poll) })
-        page.addView(label("내 표도 참여할 수 있어요"))
-        poll.options.forEach { option ->
-            page.addView(choicePill(option) { castVote(poll, option) })
+        page.addView(statusCard(if (ended) "투표 종료" else "투표 진행 중", poll.statusText(connectedCount)))
+        if (!ended) {
+            page.addView(primaryButton("참여 요청 다시 보내기") { sendPoll(poll) })
+            page.addView(label("내 표도 참여할 수 있어요"))
+            if (receivedVotes.containsKey(selfName)) {
+                page.addView(statusCard("이미 참여 완료", receivedVotes[selfName].orEmpty()))
+            } else {
+                poll.options.forEach { option ->
+                    page.addView(choicePill(option) { castVote(poll, option) })
+                }
+            }
         }
         page.addView(label("현재 집계"))
         if (receivedVotes.isEmpty()) {
@@ -194,8 +206,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             page.addView(statusCard("참여자 ${receivedVotes.size}명", receivedVotes.keys.joinToString(", ")))
         }
-        if (receivedVotes.isNotEmpty()) {
-            page.addView(primaryButton("결과 공유하기") { shareResultBlock(poll) })
+        if (receivedVotes.isNotEmpty() && !sharedResultPollIds.contains(poll.id)) {
+            page.addView(primaryButton(if (ended) "결과 공유하기" else "지금 결과 공유하기") { shareResultBlock(poll) })
         }
         page.addView(outlineButton("주변 연결 다시 시작") { startNearbyConnectionTest() })
         page.addView(outlineButton("홈으로") { showHome() })
@@ -204,10 +216,25 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showVotePoll(poll: NearbyPoll) {
         setPage()
         page.addView(topBar("투표 참여"))
-        page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerId} · 제한시간 ${poll.durationMinutes}분"))
-        page.addView(label("선택지"))
-        poll.options.forEach { option ->
-            page.addView(choicePill(option) { castVote(poll, option) })
+        page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerId} · ${poll.remainingText()}"))
+        val submitted = submittedVotes[poll.id]
+        when {
+            sharedResult?.pollId == poll.id -> {
+                page.addView(primaryButton("결과 보기") { showSharedResult(sharedResult!!) })
+            }
+            submitted != null -> {
+                page.addView(statusCard("이미 참여 완료", submitted))
+                page.addView(bodyText("한 투표에는 한 번만 참여할 수 있습니다."))
+            }
+            poll.hasEnded() -> {
+                page.addView(statusCard("투표 종료", "제한시간이 지나 더 이상 참여할 수 없습니다."))
+            }
+            else -> {
+                page.addView(label("선택지"))
+                poll.options.forEach { option ->
+                    page.addView(choicePill(option) { castVote(poll, option) })
+                }
+            }
         }
         page.addView(outlineButton("주변 투표로") { showDiscover() })
         page.addView(outlineButton("홈으로") { showHome() })
@@ -549,13 +576,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             proposerId = selfName,
             question = question,
             options = options,
-            durationMinutes = durationMinutes
+            durationMinutes = durationMinutes,
+            endAtMillis = System.currentTimeMillis() + durationMinutes * 60_000L
         )
         activePoll = poll
         receivedVotes.clear()
         sharedResult = null
+        sharedResultPollIds -= poll.id
         startNearbyConnectionTest()
         sendPoll(poll)
+        scheduleResultShare(poll)
         showPublishedPoll(poll)
     }
 
@@ -570,6 +600,18 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun castVote(poll: NearbyPoll, option: String) {
+        if (submittedVotes.containsKey(poll.id) && poll.id != activePoll?.id) {
+            Toast.makeText(this, "이미 참여한 투표입니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (receivedVotes.containsKey(selfName) && poll.id == activePoll?.id) {
+            Toast.makeText(this, "이미 참여한 투표입니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (poll.hasEnded()) {
+            Toast.makeText(this, "종료된 투표입니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
         nearby.sendToAll(
             NearVoteMessage(
                 type = NearVoteMessageType.VOTE,
@@ -612,6 +654,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val voterId = payload.optString("voterId", message.senderId)
                 val option = payload.optString("option")
                 if (option.isBlank()) return
+                if (poll.hasEnded()) {
+                    appendLog("종료된 투표의 표는 무시함: $voterId")
+                    return
+                }
+                if (receivedVotes.containsKey(voterId)) {
+                    appendLog("중복 투표 무시: $voterId")
+                    sendReceipt(poll, voterId, receivedVotes.getValue(voterId))
+                    return
+                }
                 receivedVotes[voterId] = option
                 sendReceipt(poll, voterId, option)
                 runOnUiThread { showPublishedPoll(poll) }
@@ -659,6 +710,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun shareResultBlock(poll: NearbyPoll) {
+        if (sharedResultPollIds.contains(poll.id)) {
+            showSharedResult(sharedResult ?: return)
+            return
+        }
         val counts = poll.options.associateWith { option ->
             receivedVotes.values.count { it == option }
         }
@@ -672,6 +727,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             resultHash = hash(receivedVotes.entries.joinToString("|") { "${it.key}:${it.value}" })
         )
         sharedResult = result
+        sharedResultPollIds += poll.id
         nearby.sendToAll(
             NearVoteMessage(
                 type = NearVoteMessageType.RESULT_BLOCK,
@@ -680,6 +736,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             ).toJson()
         )
         showSharedResult(result)
+    }
+
+    private fun scheduleResultShare(poll: NearbyPoll) {
+        val delay = (poll.endAtMillis - System.currentTimeMillis()).coerceAtLeast(1_000L)
+        handler.postDelayed({
+            if (activePoll?.id == poll.id && !sharedResultPollIds.contains(poll.id)) {
+                shareResultBlock(poll)
+            }
+        }, delay)
     }
 
     private fun requestNearbyPermissions() {
@@ -782,7 +847,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val proposerId: String,
         val question: String,
         val options: List<String>,
-        val durationMinutes: Int
+        val durationMinutes: Int,
+        val endAtMillis: Long
     ) {
         fun toPayloadJson(): String {
             return JSONObject()
@@ -790,7 +856,24 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 .put("question", question)
                 .put("options", JSONArray(options))
                 .put("durationMinutes", durationMinutes)
+                .put("endAtMillis", endAtMillis)
                 .toString()
+        }
+
+        fun hasEnded(): Boolean = System.currentTimeMillis() >= endAtMillis
+
+        fun remainingText(): String {
+            val remainingMillis = (endAtMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+            val remainingMinutes = ((remainingMillis + 59_999L) / 60_000L).coerceAtLeast(0L)
+            return if (remainingMinutes == 0L) "곧 종료" else "${remainingMinutes}분 남음"
+        }
+
+        fun statusText(connectedCount: Int): String {
+            return if (hasEnded()) {
+                "제한시간 종료 · 연결된 기기 ${connectedCount}대"
+            } else {
+                "${remainingText()} · 연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."
+            }
         }
 
         companion object {
@@ -803,7 +886,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     proposerId = proposerId,
                     question = payload.getString("question"),
                     options = options,
-                    durationMinutes = payload.optInt("durationMinutes", 5)
+                    durationMinutes = payload.optInt("durationMinutes", 5),
+                    endAtMillis = payload.optLong(
+                        "endAtMillis",
+                        System.currentTimeMillis() + payload.optInt("durationMinutes", 5) * 60_000L
+                    )
                 )
             }
         }
