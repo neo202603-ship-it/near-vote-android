@@ -29,6 +29,7 @@ export const state = {
   templates: [],
   editingTemplateId: null,
   draftTemplate: null,
+  templatePickerOpen: false,
   ledgerHistory: [],
   activePoll: null,
   votes: [],

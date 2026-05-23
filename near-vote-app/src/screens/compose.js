@@ -6,12 +6,16 @@ export function composeScreen() {
   const current = state.templates.find((template) => template.id === state.editingTemplateId) || state.templates[0];
   const isEditingMine = canDeleteTemplate(current) && current.id === state.editingTemplateId;
   const formTemplate = state.draftTemplate || (state.editingTemplateId ? current : null);
+
   return `
     <section class="compose-layout">
       <form class="panel compose-form" id="composeForm">
         <div class="panel-heading">
           <h2>${isEditingMine ? '템플릿 수정' : '설문 작성'}</h2>
-          <button class="primary-action compact" type="submit">근거리 게시</button>
+          <div class="form-heading-actions">
+            <button class="secondary-action compact" id="openTemplates" type="button">템플릿</button>
+            <button class="primary-action compact" type="submit">근거리 게시</button>
+          </div>
         </div>
         <label>질문
           <input name="question" value="${escapeHtml(formTemplate?.question || '')}" placeholder="질문을 입력하세요" autocomplete="off" />
@@ -26,31 +30,10 @@ export function composeScreen() {
             <option value="180" ${formTemplate?.duration === 180 ? 'selected' : ''}>3분</option>
           </select>
         </label>
-        <button class="secondary-action" id="saveTemplate" type="button">${isEditingMine ? '변경 저장' : '템플릿 저장'}</button>
+        <button class="secondary-action" id="saveTemplate" type="button">${isEditingMine ? '변경 저장' : '템플릿으로 저장'}</button>
       </form>
-      <div class="template-grid">
-        ${state.templates.map((template) => `
-          <article class="template-card">
-            <div>
-              <span>${escapeHtml(template.source)}</span>
-              <h3>${escapeHtml(template.title)}</h3>
-              <p>${escapeHtml(template.question)}</p>
-              <small>${escapeHtml(template.options.join(' · '))}</small>
-              ${template.isDefault ? '' : `
-                <div class="template-meta">
-                  <small>생성 ${escapeHtml(formatHumanTime(template.createdAt))}</small>
-                  <small>수정 ${escapeHtml(formatHumanTime(template.updatedAt))}</small>
-                </div>
-              `}
-            </div>
-            <div class="template-actions">
-              <button type="button" data-use-template="${template.id}">${template.isDefault ? '사용' : '수정'}</button>
-              <button type="button" data-copy-template="${template.id}">복사</button>
-              <button type="button" data-publish-template="${template.id}">게시</button>
-              ${canDeleteTemplate(template) ? `<button class="danger-action" type="button" data-delete-template="${template.id}">삭제</button>` : ''}
-            </div>
-          </article>
-        `).join('')}
+      <div id="templateLayer">
+        ${state.templatePickerOpen ? templateLayer() : ''}
       </div>
     </section>
   `;
@@ -68,7 +51,13 @@ export function bindCompose(render) {
     }
     await publishPoll(template);
     state.draftTemplate = null;
+    state.templatePickerOpen = false;
     navigate('ongoing');
+  });
+
+  document.querySelector('#openTemplates').addEventListener('click', () => {
+    state.templatePickerOpen = true;
+    render();
   });
 
   document.querySelector('#saveTemplate').addEventListener('click', () => {
@@ -88,8 +77,18 @@ export function bindCompose(render) {
 
     state.editingTemplateId = nextTemplate.id;
     state.draftTemplate = null;
+    state.templatePickerOpen = false;
     saveTemplates();
     render();
+  });
+
+  document.querySelectorAll('[data-close-templates]').forEach((item) => {
+    item.addEventListener('click', (event) => {
+      if (event.target === item || item.tagName === 'BUTTON') {
+        state.templatePickerOpen = false;
+        render();
+      }
+    });
   });
 
   document.querySelectorAll('[data-use-template]').forEach((button) => {
@@ -97,9 +96,7 @@ export function bindCompose(render) {
       const template = state.templates.find((item) => item.id === button.dataset.useTemplate);
       state.editingTemplateId = template.isDefault ? null : template.id;
       state.draftTemplate = template.isDefault ? normalizeTemplate({ ...template, id: createId('tpl'), source: '내 템플릿', isDefault: false, createdAt: null, updatedAt: null }) : null;
-      form.question.value = template.question;
-      form.options.value = template.options.join(', ');
-      form.duration.value = String(template.duration);
+      state.templatePickerOpen = false;
       render();
     });
   });
@@ -109,6 +106,7 @@ export function bindCompose(render) {
       const template = state.templates.find((item) => item.id === button.dataset.copyTemplate);
       state.editingTemplateId = null;
       state.draftTemplate = normalizeTemplate({ ...template, id: createId('tpl'), title: `${template.title} 복사본`, source: '내 템플릿', isDefault: false, createdAt: null, updatedAt: null });
+      state.templatePickerOpen = false;
       render();
     });
   });
@@ -130,9 +128,47 @@ export function bindCompose(render) {
       const template = state.templates.find((item) => item.id === button.dataset.publishTemplate);
       await publishPoll(template);
       state.draftTemplate = null;
+      state.templatePickerOpen = false;
       navigate('ongoing');
     });
   });
+}
+
+function templateLayer() {
+  return `
+    <div class="modal-backdrop" data-close-templates>
+      <section class="modal-panel template-modal" role="dialog" aria-modal="true" aria-label="템플릿 선택">
+        <div class="modal-heading">
+          <h2>템플릿</h2>
+          <button class="ghost-button compact" type="button" data-close-templates>닫기</button>
+        </div>
+        <div class="template-grid template-picker-grid">
+          ${state.templates.map((template) => `
+            <article class="template-card">
+              <div>
+                <span>${escapeHtml(template.source)}</span>
+                <h3>${escapeHtml(template.title)}</h3>
+                <p>${escapeHtml(template.question)}</p>
+                <small>${escapeHtml(template.options.join(' · '))}</small>
+                ${template.isDefault ? '' : `
+                  <div class="template-meta">
+                    <small>생성 ${escapeHtml(formatHumanTime(template.createdAt))}</small>
+                    <small>수정 ${escapeHtml(formatHumanTime(template.updatedAt))}</small>
+                  </div>
+                `}
+              </div>
+              <div class="template-actions">
+                <button type="button" data-use-template="${template.id}">${template.isDefault ? '사용' : '수정'}</button>
+                <button type="button" data-copy-template="${template.id}">복사</button>
+                <button type="button" data-publish-template="${template.id}">게시</button>
+                ${canDeleteTemplate(template) ? `<button class="danger-action" type="button" data-delete-template="${template.id}">삭제</button>` : ''}
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+    </div>
+  `;
 }
 
 function templateFromForm(form, currentTemplate = null) {

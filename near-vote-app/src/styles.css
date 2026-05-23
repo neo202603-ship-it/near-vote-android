@@ -163,6 +163,11 @@ h2 {
   padding: 0 16px;
 }
 
+.form-heading-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .split-layout,
 .mesh-layout,
 .compose-layout {
@@ -180,7 +185,7 @@ h2 {
 }
 
 .compose-layout {
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 640px);
 }
 
 .hero-panel,
@@ -310,6 +315,14 @@ select {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.template-modal {
+  width: min(860px, 100%);
+}
+
+.template-picker-grid {
+  padding: 16px;
 }
 
 .template-card {
