@@ -5,6 +5,7 @@ import { emptyState, escapeHtml } from '../core/view.js';
 export function waitScreen() {
   if (!state.activePoll) return `<section class="panel">${emptyState('진행 중인 설문이 없습니다.')}</section>`;
   const left = Math.max(0, Math.ceil((new Date(state.activePoll.deadline).getTime() - Date.now()) / 1000));
+  const myReceipt = state.receipts.find((receipt) => receipt.voterId === 'proposer');
 
   return `
     <section class="mesh-layout">
@@ -16,6 +17,7 @@ export function waitScreen() {
         <div class="poll-card">
           <h2>${escapeHtml(state.activePoll.question)}</h2>
           <p>${state.votes.length}개의 서명된 투표를 수집했습니다.</p>
+          ${myReceipt ? receiptCard(myReceipt) : ''}
           <button class="primary-action" id="finalizeNow" type="button" ${left > 0 ? 'disabled' : ''}>${left > 0 ? '제한 시간 진행 중' : '결과 블록 보기'}</button>
         </div>
       </div>
@@ -31,6 +33,16 @@ export function waitScreen() {
         </div>
       </div>
     </section>
+  `;
+}
+
+function receiptCard(receipt) {
+  return `
+    <div class="receipt-card">
+      <span>투표 접수증</span>
+      <strong>${escapeHtml(receipt.choice)}</strong>
+      <small>${escapeHtml(receipt.voteHash.slice(0, 24))}</small>
+    </div>
   `;
 }
 

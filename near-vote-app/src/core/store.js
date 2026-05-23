@@ -1,5 +1,5 @@
 import { createKeyPair, exportPublicKey } from './crypto.js';
-import { createPoll, createResultBlock, createSignedVote, hasPollExpired } from './protocol.js';
+import { createPoll, createResultBlock, createSignedVote, createVoteReceipt, hasPollExpired } from './protocol.js';
 
 const TEMPLATE_KEY = 'near-vote-app.templates.v1';
 const LEDGER_KEY = 'near-vote-app.ledgers.v1';
@@ -35,6 +35,7 @@ export const state = {
   ledgerHistory: [],
   activePoll: null,
   votes: [],
+  receipts: [],
   resultBlock: null,
   keys: new Map(),
   timerId: null
@@ -157,6 +158,7 @@ export async function publishPoll(template) {
     publicKey: proposerKey.publicKey
   });
   state.votes = [];
+  state.receipts = [];
   state.resultBlock = null;
   notify('근거리 게시 완료');
 }
@@ -182,6 +184,10 @@ export async function castVote(participantId, selectedChoice = null) {
 
   participant.voted = true;
   state.votes = state.votes.filter((item) => item.voterId !== participantId).concat(vote);
+  state.receipts = state.receipts.filter((item) => item.voterId !== participantId).concat(createVoteReceipt({
+    vote,
+    receivedBy: state.activePoll.proposerDisplayId
+  }));
 }
 
 export async function finalizePoll() {

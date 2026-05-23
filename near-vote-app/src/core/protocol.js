@@ -30,6 +30,19 @@ export async function createSignedVote({ poll, participant, key, choice, now = n
   };
 }
 
+export function createVoteReceipt({ vote, receivedBy, now = new Date() }) {
+  return {
+    receiptId: `receipt_${vote.voteHash.slice(0, 16)}`,
+    pollId: vote.pollId,
+    voterId: vote.voterId,
+    voterDisplayId: vote.voterDisplayId,
+    choice: vote.choice,
+    voteHash: vote.voteHash,
+    receivedBy,
+    receivedAt: now.toISOString()
+  };
+}
+
 export async function createResultBlock({ poll, votes, participants, proposer, proposerKey, now = new Date() }) {
   const joinedParticipants = participants.filter((participant) => participant.joined);
   const result = Object.fromEntries(poll.options.map((option) => [option, 0]));
@@ -71,4 +84,9 @@ export async function verifyResultBlock(blockBody, blockHash) {
 
 export function hasPollExpired(poll, now = new Date()) {
   return new Date(poll.deadline).getTime() <= now.getTime();
+}
+
+export function isReceiptIncluded(receipt, block) {
+  if (!receipt || !block) return false;
+  return block.includedVoters.includes(receipt.voterId);
 }

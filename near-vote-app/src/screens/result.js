@@ -1,4 +1,5 @@
 import { state } from '../core/store.js';
+import { isReceiptIncluded } from '../core/protocol.js';
 import { emptyState, escapeHtml } from '../core/view.js';
 
 export function resultScreen() {
@@ -7,6 +8,8 @@ export function resultScreen() {
   const participantIds = block.participantIds || block.replicatedTo || [];
   const includedVoterIds = block.includedVoterIds || block.includedVoters || [];
   const participantCount = block.participantCount || participantIds.length || block.voteCount || 0;
+  const myReceipt = state.receipts.find((receipt) => receipt.pollId === block.pollId && receipt.voterId === 'proposer');
+  const receiptIncluded = isReceiptIncluded(myReceipt, block);
 
   return `
     <section class="panel result-panel">
@@ -28,6 +31,13 @@ export function resultScreen() {
           <strong>${escapeHtml(block.proposerDisplayId || block.proposerId)}</strong>
         </article>
       </div>
+      ${myReceipt ? `
+        <div class="receipt-card result-receipt">
+          <span>내 투표 접수증</span>
+          <strong>${receiptIncluded ? '최종 블록 포함' : '최종 블록 미포함'}</strong>
+          <small>${escapeHtml(myReceipt.voteHash.slice(0, 24))}</small>
+        </div>
+      ` : ''}
       <div class="result-grid">
         ${Object.entries(block.result).map(([option, count]) => `
           <article class="result-row">
