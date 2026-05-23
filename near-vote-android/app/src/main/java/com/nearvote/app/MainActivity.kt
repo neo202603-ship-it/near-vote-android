@@ -1,6 +1,7 @@
 package com.nearvote.app
 
 import android.Manifest
+import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -26,6 +27,7 @@ import com.nearvote.app.simulation.LocalVoteSimulator
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
+import kotlin.math.abs
 
 class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
@@ -34,7 +36,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
     private val handler = Handler(Looper.getMainLooper())
-    private val selfName = "NearVote-${Build.MODEL}"
+    private var selfName = ""
     private var connectedCount = 0
     private var activePoll: NearbyPoll? = null
     private var incomingPoll: NearbyPoll? = null
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        selfName = loadIdentity()
         nearby = NearbyVoteConnectionManager(this, selfName, this)
         simulator = LocalVoteSimulator(selfName)
         requestNearbyPermissions()
@@ -93,6 +96,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         setPage()
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
+        page.addView(outlineButton("내 아이디 관리") { showMyPage() })
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
             showCompose()
         })
@@ -111,6 +115,29 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(outlineButton("공유받은 결과 보기") { showSharedResult(it) })
         }
         page.addView(quietButton("개발자 진단") { showDiagnostics() })
+    }
+
+    private fun showMyPage() {
+        setPage()
+        page.addView(topBar("내 아이디"))
+        page.addView(bodyText("아이디는 결과와 참여자 목록에 표시됩니다. 따로 만들지 않아도 제안 아이디를 바로 사용할 수 있습니다."))
+        val identityInput = inputBox("내 아이디", selfName)
+        page.addView(label("현재 아이디"))
+        page.addView(identityInput)
+        page.addView(outlineButton("새 아이디 제안") {
+            identityInput.setText(suggestIdentity())
+        })
+        page.addView(primaryButton("저장하기") {
+            val nextIdentity = identityInput.text.toString().trim()
+            if (nextIdentity.length < 2) {
+                Toast.makeText(this, "아이디는 2글자 이상 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                return@primaryButton
+            }
+            saveIdentity(nextIdentity)
+            Toast.makeText(this, "아이디 저장 완료", Toast.LENGTH_SHORT).show()
+            showHome()
+        })
+        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showCompose() {
@@ -570,6 +597,46 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator.runDemo().forEach { appendLog(it) }
     }
 
+    private fun loadIdentity(): String {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val saved = prefs.getString(KEY_IDENTITY, null)
+        if (!saved.isNullOrBlank()) return saved
+        val suggested = suggestIdentity()
+        prefs.edit().putString(KEY_IDENTITY, suggested).apply()
+        return suggested
+    }
+
+    private fun saveIdentity(nextIdentity: String) {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_IDENTITY, nextIdentity)
+            .apply()
+        selfName = nextIdentity
+        resetSessionForIdentity()
+    }
+
+    private fun resetSessionForIdentity() {
+        handler.removeCallbacksAndMessages(null)
+        nearby.stop()
+        nearby = NearbyVoteConnectionManager(this, selfName, this)
+        simulator = LocalVoteSimulator(selfName)
+        connectedCount = 0
+        activePoll = null
+        incomingPoll = null
+        latestReceipt = null
+        sharedResult = null
+        receivedVotes.clear()
+        submittedVotes.clear()
+        sharedResultPollIds.clear()
+    }
+
+    private fun suggestIdentity(): String {
+        val adjectives = listOf("따뜻한", "빠른", "조용한", "선명한", "든든한", "가벼운", "밝은", "차분한")
+        val objects = listOf("머그컵", "가방", "연필", "나침반", "우산", "노트", "램프", "시계")
+        val seed = abs((Build.MODEL + System.currentTimeMillis()).hashCode())
+        return adjectives[seed % adjectives.size] + objects[(seed / adjectives.size) % objects.size]
+    }
+
     private fun publishPoll(question: String, options: List<String>, durationMinutes: Int) {
         val poll = NearbyPoll(
             id = "poll-${System.currentTimeMillis()}",
@@ -894,5 +961,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 )
             }
         }
+    }
+
+    companion object {
+        private const val PREFS_NAME = "near_vote_prefs"
+        private const val KEY_IDENTITY = "identity"
     }
 }
