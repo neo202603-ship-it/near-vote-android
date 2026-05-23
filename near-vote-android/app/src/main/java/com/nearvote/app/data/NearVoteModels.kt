@@ -141,3 +141,37 @@ data class NearbyPoll(
         }
     }
 }
+
+data class PollTemplate(
+    val id: String,
+    val title: String,
+    val question: String,
+    val options: List<String>,
+    val durationMinutes: Int,
+    val builtIn: Boolean = false
+) {
+    fun toJson(): JSONObject {
+        return JSONObject()
+            .put("id", id)
+            .put("title", title)
+            .put("question", question)
+            .put("options", JSONArray(options))
+            .put("durationMinutes", durationMinutes)
+            .put("builtIn", builtIn)
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject): PollTemplate {
+            val optionsArray = json.getJSONArray("options")
+            val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
+            return PollTemplate(
+                id = json.getString("id"),
+                title = json.getString("title"),
+                question = json.getString("question"),
+                options = options,
+                durationMinutes = json.optInt("durationMinutes", 5),
+                builtIn = json.optBoolean("builtIn", false)
+            )
+        }
+    }
+}

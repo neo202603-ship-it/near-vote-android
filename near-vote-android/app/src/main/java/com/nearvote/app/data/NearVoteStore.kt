@@ -49,11 +49,74 @@ class NearVoteStore(context: Context) {
         }
     }
 
+    fun loadTemplates(): List<PollTemplate> {
+        val saved = prefs.getString(KEY_TEMPLATES, "[]").orEmpty().ifBlank { "[]" }
+        val templates = JSONArray(saved)
+        val userTemplates = (0 until templates.length()).mapNotNull { index ->
+            runCatching { PollTemplate.fromJson(templates.getJSONObject(index)) }.getOrNull()
+        }
+        return defaultTemplates + userTemplates
+    }
+
+    fun saveTemplate(template: PollTemplate) {
+        val userTemplates = loadUserTemplates()
+            .filterNot { it.id == template.id }
+            .toMutableList()
+        userTemplates.add(0, template.copy(builtIn = false))
+        persistUserTemplates(userTemplates)
+    }
+
+    fun deleteTemplate(templateId: String) {
+        persistUserTemplates(loadUserTemplates().filterNot { it.id == templateId })
+    }
+
+    private fun loadUserTemplates(): List<PollTemplate> {
+        val saved = prefs.getString(KEY_TEMPLATES, "[]").orEmpty().ifBlank { "[]" }
+        val templates = JSONArray(saved)
+        return (0 until templates.length()).mapNotNull { index ->
+            runCatching { PollTemplate.fromJson(templates.getJSONObject(index)) }.getOrNull()
+        }
+    }
+
+    private fun persistUserTemplates(templates: List<PollTemplate>) {
+        val json = JSONArray()
+        templates.forEach { json.put(it.toJson()) }
+        prefs.edit().putString(KEY_TEMPLATES, json.toString()).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "near_vote_prefs"
         private const val KEY_IDENTITY = "identity"
         private const val KEY_RECEIPTS = "receipts"
         private const val KEY_RESULTS = "results"
+        private const val KEY_TEMPLATES = "templates"
         private const val MAX_HISTORY_COUNT = 20
+
+        private val defaultTemplates = listOf(
+            PollTemplate(
+                id = "builtin_lunch",
+                title = "점심메뉴는?",
+                question = "점심메뉴는?",
+                options = listOf("한식", "분식", "샐러드"),
+                durationMinutes = 5,
+                builtIn = true
+            ),
+            PollTemplate(
+                id = "builtin_dinner",
+                title = "오늘 회식은?",
+                question = "오늘 회식은?",
+                options = listOf("삼겹살", "치킨", "이자카야", "다음에"),
+                durationMinutes = 10,
+                builtIn = true
+            ),
+            PollTemplate(
+                id = "builtin_coffee",
+                title = "커피 주문할까?",
+                question = "커피 주문할까?",
+                options = listOf("아메리카노", "라떼", "안 마심"),
+                durationMinutes = 5,
+                builtIn = true
+            )
+        )
     }
 }

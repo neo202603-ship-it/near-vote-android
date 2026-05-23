@@ -21,6 +21,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import com.nearvote.app.data.NearVoteStore
 import com.nearvote.app.data.NearbyPoll
+import com.nearvote.app.data.PollTemplate
 import com.nearvote.app.data.SharedResult
 import com.nearvote.app.data.VoteReceipt
 import com.nearvote.app.nearby.NearbyVoteConnectionManager
@@ -161,25 +162,19 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(outlineButton("홈으로") { showHome() })
     }
 
-    private fun showCompose() {
+    private fun showCompose(template: PollTemplate? = null) {
         setPage()
         page.addView(topBar("설문 만들기"))
         page.addView(bodyText("질문과 선택지를 입력하고 주변 사람에게 바로 게시합니다."))
 
-        val questionInput = inputBox("질문", "점심메뉴는?")
-        val optionsInput = inputBox("선택지", "한식\n분식\n샐러드", multiLine = true)
-        val durationInput = inputBox("제한시간(분)", "5", numberOnly = true)
+        val selectedTemplate = template ?: store.loadTemplates().first()
+        val questionInput = inputBox("질문", selectedTemplate.question)
+        val optionsInput = inputBox("선택지", selectedTemplate.options.joinToString("\n"), multiLine = true)
+        val durationInput = inputBox("제한시간(분)", selectedTemplate.durationMinutes.toString(), numberOnly = true)
 
-        page.addView(label("빠른 템플릿"))
-        page.addView(outlineButton("점심메뉴는?") {
-            questionInput.setText("점심메뉴는?")
-            optionsInput.setText("한식\n분식\n샐러드")
-            durationInput.setText("5")
-        })
-        page.addView(outlineButton("오늘 회식은?") {
-            questionInput.setText("오늘 회식은?")
-            optionsInput.setText("삼겹살\n치킨\n이자카야\n다음에")
-            durationInput.setText("10")
+        page.addView(label("템플릿"))
+        page.addView(outlineButton("템플릿 선택") {
+            showTemplatePicker(questionInput.text.toString(), optionsInput.text.toString(), durationInput.text.toString())
         })
 
         page.addView(label("질문"))
@@ -207,8 +202,75 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             publishPoll(question, options, durationMinutes.coerceIn(1, 60))
         })
+        page.addView(outlineButton("템플릿으로 저장") {
+            val template = buildTemplateFromInputs(questionInput, optionsInput, durationInput) ?: return@outlineButton
+            store.saveTemplate(template)
+            Toast.makeText(this, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
+        })
         page.addView(outlineButton("게시 흐름 미리보기") { showSimulationResult() })
         page.addView(outlineButton("홈으로") { showHome() })
+    }
+
+    private fun showTemplatePicker(
+        currentQuestion: String = "점심메뉴는?",
+        currentOptions: String = "한식\n분식\n샐러드",
+        currentDuration: String = "5"
+    ) {
+        setPage()
+        page.addView(topBar("템플릿 선택"))
+        page.addView(bodyText("템플릿을 선택하면 설문 작성 화면에 질문과 선택지가 채워집니다."))
+        store.loadTemplates().forEach { template ->
+            val source = if (template.builtIn) "기본 템플릿" else "내 템플릿"
+            page.addView(actionCard("$source > ${template.title}", template.options.joinToString(" / ")) {
+                showCompose(template)
+            })
+            if (!template.builtIn) {
+                page.addView(quietButton("삭제: ${template.title}") {
+                    store.deleteTemplate(template.id)
+                    Toast.makeText(this, "템플릿 삭제 완료", Toast.LENGTH_SHORT).show()
+                    showTemplatePicker(currentQuestion, currentOptions, currentDuration)
+                })
+            }
+        }
+        page.addView(outlineButton("작성 화면으로") {
+            showCompose(
+                PollTemplate(
+                    id = "draft",
+                    title = currentQuestion.ifBlank { "새 설문" },
+                    question = currentQuestion.ifBlank { "점심메뉴는?" },
+                    options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("한식", "분식", "샐러드") },
+                    durationMinutes = currentDuration.toIntOrNull() ?: 5
+                )
+            )
+        })
+    }
+
+    private fun buildTemplateFromInputs(
+        questionInput: EditText,
+        optionsInput: EditText,
+        durationInput: EditText
+    ): PollTemplate? {
+        val question = questionInput.text.toString().trim()
+        val options = optionsInput.text.toString()
+            .lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (question.isBlank()) {
+            Toast.makeText(this, "질문을 입력해 주세요.", Toast.LENGTH_SHORT).show()
+            return null
+        }
+        if (options.size < 2) {
+            Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
+            return null
+        }
+        return PollTemplate(
+            id = "template-${System.currentTimeMillis()}",
+            title = question,
+            question = question,
+            options = options,
+            durationMinutes = (durationInput.text.toString().toIntOrNull() ?: 5).coerceIn(1, 60)
+        )
     }
 
     private fun showDiscover() {
