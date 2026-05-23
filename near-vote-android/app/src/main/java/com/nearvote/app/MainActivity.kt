@@ -315,12 +315,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topBar("참여할 투표 찾기"))
         val poll = incomingPoll
         if (poll == null) {
-            page.addView(emptyCard("아직 찾은 투표 없음", "두 기기에서 주변 연결 시작을 누른 뒤, 다른 기기에서 설문을 게시해보세요."))
+            page.addView(emptyCard("아직 찾은 투표 없음", "자동 연결이 켜져 있으면 근처에서 게시된 투표가 이 화면에 표시됩니다."))
         } else {
             page.addView(infoCard("받은 설문", poll.question, poll.options.joinToString(" / ")))
             page.addView(primaryButton("투표 참여하기") { showVotePoll(poll) })
         }
-        page.addView(primaryButton("주변 연결 시작") { showDiagnostics(autoStart = true) })
+        page.addView(primaryButton("연결 상태 확인") { showDiagnostics() })
         page.addView(outlineButton("테스트 투표 참여해보기") { showSimulationResult() })
         page.addView(outlineButton("홈으로") { showHome() })
     }
@@ -445,7 +445,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showDiagnostics(runSimulation: Boolean = false, autoStart: Boolean = false) {
         setPage()
         page.addView(topBar("개발자 진단"))
-        connectionStatusView = statusCard("연결된 기기 ${connectedCount}대", "두 기기에서 모두 아래의 주변 연결 시작을 누르세요.")
+        connectionStatusView = statusCard("연결 상태", connectionStatusText())
         page.addView(connectionStatusView)
         page.addView(primaryButton("주변 연결 시작") { startNearbyConnectionTest() })
         page.addView(outlineButton("테스트 메시지 보내기") {
@@ -761,7 +761,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return if (connectedCount == 0) {
             "연결된 기기 0대 · 약 ${NEARBY_HEARTBEAT_MS / 1000}초마다 주변 연결 상태를 확인합니다."
         } else {
-            "연결된 기기 ${connectedCount}대 · 설문 게시와 투표 참여가 가능합니다."
+            val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
+            "연결된 기기 ${connectedCount}대${peerNames?.let { " · $it" }.orEmpty()} · 설문 게시와 투표 참여가 가능합니다."
         }
     }
 
@@ -984,7 +985,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun sendResultBlock(result: SharedResult) {
-        appendLog("새 연결 기기에 공유 결과를 자동 전달")
+        appendLog("결과 블록 전송")
         nearby.sendToAll(
             NearVoteMessage(
                 type = NearVoteMessageType.RESULT_BLOCK,

@@ -141,6 +141,10 @@ class NearbyVoteConnectionManager(
         listener.onConnectionCountChanged(connectedEndpoints.size)
     }
 
+    fun connectedPeerNames(): List<String> {
+        return connectedEndpoints.map { endpointId -> endpointNames[endpointId] ?: endpointId }
+    }
+
     fun sendToAll(message: String) {
         if (connectedEndpoints.isEmpty()) {
             listener.onLog("전송할 연결 기기가 없음")
