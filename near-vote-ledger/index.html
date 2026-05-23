@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Near Vote Ledger</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Serverless local poll</p>
+            <h1>Near Vote Ledger</h1>
+          </div>
+          <div class="status-pill" id="networkStatus">근거리 대기</div>
+        </header>
+
+        <section class="control-band">
+          <form id="pollForm" class="poll-form">
+            <label>
+              질문
+              <input id="questionInput" name="question" value="오늘 회의에서 먼저 결정할 안건은?" autocomplete="off" />
+            </label>
+            <label>
+              선택지
+              <input id="optionsInput" name="options" value="예산안, 일정, 역할 분담, 다음 회의" autocomplete="off" />
+            </label>
+            <label>
+              제한 시간
+              <select id="durationInput" name="duration">
+                <option value="30">30초</option>
+                <option value="60" selected>1분</option>
+                <option value="180">3분</option>
+              </select>
+            </label>
+            <button class="primary-action" type="submit">설문 시작</button>
+            <button id="saveTemplateButton" class="secondary-action" type="button">템플릿 저장</button>
+          </form>
+        </section>
+
+        <section class="template-band" aria-label="질문 템플릿">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Reusable polls</p>
+              <h2>질문 보관함</h2>
+            </div>
+            <span id="templateCount" class="subtle-count">0개</span>
+          </div>
+          <div id="templateList" class="template-list"></div>
+        </section>
+
+        <section class="mesh-layout">
+          <aside class="panel participants-panel">
+            <div class="panel-heading">
+              <h2>근거리 참여자</h2>
+              <button id="inviteButton" class="icon-button" type="button" title="초대 전파" aria-label="초대 전파">)))</button>
+            </div>
+            <div id="participantList" class="participant-list"></div>
+          </aside>
+
+          <section class="panel poll-panel">
+            <div class="panel-heading">
+              <h2>진행 중 설문</h2>
+              <span id="timerLabel" class="timer">--</span>
+            </div>
+            <div id="pollView" class="poll-view empty-state">
+              설문을 시작하면 주변 참여자에게 초대가 전파됩니다.
+            </div>
+          </section>
+
+          <section class="panel ledger-panel">
+            <div class="panel-heading">
+              <h2>공유 원장</h2>
+              <button id="finalizeButton" class="icon-button" type="button" title="블록 생성" aria-label="블록 생성">#</button>
+            </div>
+            <div id="ledgerView" class="ledger-view"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
