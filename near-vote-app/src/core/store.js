@@ -24,6 +24,7 @@ export const defaultTemplates = [
 export const state = {
   route: 'home',
   status: '근거리 대기',
+  toast: null,
   userId: '',
   hasUserId: false,
   templates: [],
@@ -40,6 +41,13 @@ export const state = {
 
 export function createId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function notify(message) {
+  state.toast = {
+    id: createId('toast'),
+    message
+  };
 }
 
 export function suggestUserId() {
@@ -151,7 +159,7 @@ export async function publishPoll(template) {
   };
   state.votes = [];
   state.resultBlock = null;
-  state.status = '근거리 게시 완료';
+  notify('근거리 게시 완료');
 }
 
 export async function inviteNearbyParticipants() {
@@ -159,7 +167,7 @@ export async function inviteNearbyParticipants() {
     participant.joined = true;
     await castVote(participant.id);
   }
-  state.status = '주변 투표 수집 중';
+  notify('주변 투표 수집 중');
 }
 
 export async function castVote(participantId, selectedChoice = null) {
@@ -188,7 +196,7 @@ export async function castVote(participantId, selectedChoice = null) {
 export async function finalizePoll() {
   if (!state.activePoll || state.resultBlock) return state.resultBlock;
   if (new Date(state.activePoll.deadline).getTime() > Date.now()) {
-    state.status = '제한 시간 진행 중';
+    notify('제한 시간 진행 중');
     return null;
   }
 
@@ -224,6 +232,6 @@ export async function finalizePoll() {
   };
   state.ledgerHistory = [state.resultBlock, ...state.ledgerHistory].slice(0, 20);
   saveLedgerHistory();
-  state.status = '결과 원장 공유 완료';
+  notify('결과 원장 공유 완료');
   return state.resultBlock;
 }

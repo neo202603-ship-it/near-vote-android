@@ -1,5 +1,5 @@
 import { navigate } from '../core/router.js';
-import { setUserId, state, suggestUserId } from '../core/store.js';
+import { notify, setUserId, state, suggestUserId } from '../core/store.js';
 import { escapeHtml } from '../core/view.js';
 
 export function homeScreen() {
@@ -54,7 +54,7 @@ export function bindHome() {
   form?.addEventListener('submit', (event) => {
     event.preventDefault();
     setUserId(new FormData(form).get('userId'));
-    state.status = '아이디 저장 완료';
+    notify('아이디 저장 완료');
     window.dispatchEvent(new CustomEvent('routechange'));
   });
 

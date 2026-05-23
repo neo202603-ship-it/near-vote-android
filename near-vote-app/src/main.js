@@ -27,9 +27,19 @@ const screens = {
 
 function render() {
   const [screen, bind] = screens[state.route] || screens.home;
-  app.innerHTML = shell(screen(), state.route, state.status);
+  const activeToastId = state.toast?.id;
+  app.innerHTML = shell(screen(), state.route, state.toast);
   bindNav(app);
   bind(render);
+
+  if (activeToastId) {
+    setTimeout(() => {
+      if (state.toast?.id === activeToastId) {
+        state.toast = null;
+        render();
+      }
+    }, 2200);
+  }
 }
 
 window.addEventListener('routechange', render);

@@ -1,5 +1,5 @@
 import { navigate } from '../core/router.js';
-import { canDeleteTemplate, createId, normalizeTemplate, publishPoll, saveTemplates, state } from '../core/store.js';
+import { canDeleteTemplate, createId, normalizeTemplate, notify, publishPoll, saveTemplates, state } from '../core/store.js';
 import { escapeHtml, formatHumanTime } from '../core/view.js';
 
 export function composeScreen() {
@@ -45,7 +45,7 @@ export function bindCompose(render) {
     event.preventDefault();
     const template = templateFromForm(form);
     if (!isValidTemplate(template)) {
-      state.status = '질문과 선택지를 확인하세요';
+      notify('질문과 선택지를 확인하세요');
       render();
       return;
     }
@@ -64,7 +64,7 @@ export function bindCompose(render) {
     const editingTemplate = state.templates.find((template) => template.id === state.editingTemplateId);
     const nextTemplate = templateFromForm(form, editingTemplate);
     if (!isValidTemplate(nextTemplate)) {
-      state.status = '질문과 선택지를 확인하세요';
+      notify('질문과 선택지를 확인하세요');
       render();
       return;
     }

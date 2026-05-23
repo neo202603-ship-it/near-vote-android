@@ -26,7 +26,7 @@ export function formatHumanTime(value) {
   }).format(date);
 }
 
-export function shell(content, activeRoute, status) {
+export function shell(content, activeRoute, toast) {
   const primaryItems = [
     ['home', '홈'],
     ['compose', '작성'],
@@ -41,7 +41,6 @@ export function shell(content, activeRoute, status) {
           <p class="eyebrow">Serverless local poll</p>
           <h1>Near Vote</h1>
         </div>
-        <span class="status-pill">${escapeHtml(status)}</span>
       </header>
       <nav class="topnav" aria-label="주요 화면">
         <div class="primary-tabs">
@@ -51,6 +50,7 @@ export function shell(content, activeRoute, status) {
         </div>
       </nav>
       ${content}
+      ${toast ? `<div class="toast" role="status">${escapeHtml(toast.message)}</div>` : ''}
     </main>
   `;
 }
