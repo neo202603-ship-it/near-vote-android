@@ -454,24 +454,40 @@ button:disabled {
   font-size: 0.78rem;
 }
 
-.history-card > small {
+.history-card > small,
+.history-footer small {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
 
-.participant-chipline {
+.history-footer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.participant-chipline span {
+.history-footer .ghost-button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  background: #fbfcfa;
+  white-space: nowrap;
+}
+
+.participant-list-layer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 18px;
+}
+
+.participant-list-layer span {
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 5px 9px;
+  padding: 8px 12px;
   background: var(--soft);
   color: var(--accent-strong);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 900;
 }
 
@@ -482,9 +498,14 @@ button:disabled {
 
 .mini-results div {
   display: grid;
-  grid-template-columns: minmax(80px, 140px) 1fr minmax(86px, auto);
+  grid-template-columns: minmax(64px, 0.8fr) minmax(90px, 1fr) max-content;
   align-items: center;
   gap: 10px;
+}
+
+.mini-results span,
+.result-row span {
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -535,7 +556,7 @@ button:disabled {
 
 .result-row {
   display: grid;
-  grid-template-columns: minmax(100px, 180px) 1fr minmax(96px, auto);
+  grid-template-columns: minmax(74px, 0.8fr) minmax(110px, 1fr) max-content;
   align-items: center;
   gap: 12px;
 }
@@ -552,6 +573,36 @@ pre {
   color: #eafff8;
   overflow: auto;
   font-size: 0.84rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 26, 23, 0.36);
+}
+
+.modal-panel {
+  width: min(520px, 100%);
+  max-height: min(640px, 90vh);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(17, 26, 23, 0.24);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 16px;
 }
 
 @media (max-width: 900px) {
@@ -588,16 +639,20 @@ pre {
   }
 
   .choice-grid,
-  .result-row,
   .status-grid,
   .result-summary,
   .identity-form,
-  .mini-results div {
+  .history-footer {
     grid-template-columns: 1fr;
   }
 
   .identity-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .history-footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
