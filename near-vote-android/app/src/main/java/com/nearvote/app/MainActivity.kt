@@ -31,6 +31,9 @@ import com.nearvote.app.protocol.NearVoteMessageType
 import com.nearvote.app.simulation.LocalVoteSimulator
 import org.json.JSONObject
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 import kotlin.math.abs
 
@@ -118,6 +121,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showHome() {
         setPage()
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
+        page.addView(topMenu("홈"))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
         page.addView(buttonRow(
             compactButton("내 아이디 관리", BUTTON_OUTLINE) { showMyPage() },
@@ -167,11 +171,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val results = store.loadResultHistory()
         setPage()
         page.addView(topBar("지난 결과"))
+        page.addView(topMenu("결과"))
         if (results.isEmpty()) {
             page.addView(emptyCard("저장된 결과 없음", "결과를 공유받거나 직접 공유하면 여기에 남습니다."))
         } else {
             results.forEach { result ->
-                page.addView(actionCard(result.question, "참여자 ${result.participantCount}명 · ${result.resultHash.take(16)}") {
+                page.addView(actionCard(result.question, "${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명 · ${result.resultHash.take(12)}") {
                     showSharedResult(result)
                 })
             }
@@ -182,6 +187,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showMyPage() {
         setPage()
         page.addView(topBar("내 아이디"))
+        page.addView(topMenu("설정"))
         page.addView(bodyText("아이디는 결과와 참여자 목록에 표시됩니다. 따로 만들지 않아도 제안 아이디를 바로 사용할 수 있습니다."))
         val identityInput = inputBox("내 아이디", selfName)
         page.addView(label("현재 아이디"))
@@ -205,6 +211,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showSettings() {
         setPage()
         page.addView(topBar("설정"))
+        page.addView(topMenu("설정"))
         page.addView(statusCard(
             "자동 연결",
             if (autoConnectEnabled) {
@@ -224,6 +231,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showCompose(template: PollTemplate? = null) {
         setPage()
         page.addView(topBar("설문 만들기"))
+        page.addView(topMenu("투표"))
         page.addView(bodyText("질문과 선택지를 입력하고 주변 사람에게 바로 게시합니다."))
 
         val selectedTemplate = template ?: store.loadTemplates().first()
@@ -279,6 +287,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     ) {
         setPage()
         page.addView(topBar("템플릿 선택"))
+        page.addView(topMenu("투표"))
         page.addView(bodyText("템플릿을 선택하면 설문 작성 화면에 질문과 선택지가 채워집니다."))
         store.loadTemplates().forEach { template ->
             val source = if (template.builtIn) "기본 템플릿" else "내 템플릿"
@@ -337,6 +346,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showDiscover() {
         setPage()
         page.addView(topBar("참여할 투표 찾기"))
+        page.addView(topMenu("투표"))
         val poll = incomingPoll
         if (poll == null) {
             page.addView(emptyCard("아직 찾은 투표 없음", "자동 연결이 켜져 있으면 근처에서 게시된 투표가 이 화면에 표시됩니다."))
@@ -353,6 +363,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val ended = poll.hasEnded()
         setPage()
         page.addView(topBar("게시한 투표"))
+        page.addView(topMenu("투표"))
         page.addView(infoCard("설문", poll.question, poll.options.joinToString(" / ")))
         page.addView(statusCard(if (ended) "투표 종료" else "투표 진행 중", poll.statusText(connectedCount)))
         if (!ended) {
@@ -387,6 +398,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showVotePoll(poll: NearbyPoll) {
         setPage()
         page.addView(topBar("투표 참여"))
+        page.addView(topMenu("투표"))
         page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
         val submitted = submittedVotes[poll.id]
         when {
@@ -414,6 +426,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showVoteSubmitted(poll: NearbyPoll, option: String) {
         setPage()
         page.addView(topBar("투표 완료"))
+        page.addView(topMenu("투표"))
         page.addView(statusCard("내 표를 보냈습니다", "${poll.question} · $option"))
         val receipt = latestReceipt
         if (receipt == null || receipt.pollId != poll.id) {
@@ -430,7 +443,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showSharedResult(result: SharedResult) {
         setPage()
         page.addView(topBar("공유받은 결과"))
-        page.addView(infoCard("설문", result.question, "제안자: ${result.proposerName}"))
+        page.addView(topMenu("결과"))
+        page.addView(infoCard("설문", result.question, "제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}"))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
         result.options.forEach { option ->
@@ -595,6 +609,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 setPadding(dp(12), 0, 0, 0)
             })
         }
+    }
+
+    private fun topMenu(selected: String): LinearLayout {
+        return buttonRow(
+            compactButton("홈", if (selected == "홈") BUTTON_PRIMARY else BUTTON_QUIET) { showHome() },
+            compactButton("투표", if (selected == "투표") BUTTON_PRIMARY else BUTTON_QUIET) { showCompose() },
+            compactButton("결과", if (selected == "결과") BUTTON_PRIMARY else BUTTON_QUIET) { showHistory() },
+            compactButton("설정", if (selected == "설정") BUTTON_PRIMARY else BUTTON_QUIET) { showSettings() }
+        )
     }
 
     private fun actionCard(title: String, subtitle: String, onClick: () -> Unit): LinearLayout {
@@ -912,6 +935,22 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun friendlyTime(timestampMillis: Long): String {
+        val now = System.currentTimeMillis()
+        val diff = (now - timestampMillis).coerceAtLeast(0L)
+        val minute = 60_000L
+        val hour = 60 * minute
+        val day = 24 * hour
+        return when {
+            diff < minute -> "방금 전"
+            diff < hour -> "${diff / minute}분 전"
+            diff < day -> "${diff / hour}시간 전"
+            diff < 2 * day -> SimpleDateFormat("어제 HH:mm", Locale.KOREA).format(Date(timestampMillis))
+            diff < 7 * day -> SimpleDateFormat("E HH:mm", Locale.KOREA).format(Date(timestampMillis))
+            else -> SimpleDateFormat("M월 d일 HH:mm", Locale.KOREA).format(Date(timestampMillis))
+        }
+    }
+
     private fun runLocalSimulation() {
         simulator.runDemo().forEach { appendLog(it) }
     }
@@ -1143,6 +1182,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             participantNames = participantNames,
             participantSelections = participantSelections,
             participantCount = receivedVotes.size,
+            createdAtMillis = System.currentTimeMillis(),
             resultHash = SharedResult.computeHash(
                 pollId = poll.id,
                 question = poll.question,
