@@ -1,4 +1,5 @@
-import { createKeyPair, digest, exportPublicKey, signPayload } from './crypto.js';
+import { createKeyPair, exportPublicKey } from './crypto.js';
+import { createPoll, createResultBlock, createSignedVote, hasPollExpired } from './protocol.js';
 
 const TEMPLATE_KEY = 'near-vote-app.templates.v1';
 const LEDGER_KEY = 'near-vote-app.ledgers.v1';
@@ -147,16 +148,14 @@ export async function publishPoll(template) {
   resetParticipants();
   clearInterval(state.timerId);
 
+  const proposer = participants.find((participant) => participant.id === 'proposer');
   const proposerKey = state.keys.get('proposer');
-  state.activePoll = {
-    pollId: createId('poll'),
-    question: template.question,
-    options: template.options,
-    deadline: new Date(Date.now() + Number(template.duration) * 1000).toISOString(),
-    proposerId: 'proposer',
-    proposerDisplayId: state.userId,
-    proposerPublicKey: proposerKey.publicKey
-  };
+  state.activePoll = createPoll({
+    id: createId('poll'),
+    template,
+    proposer,
+    publicKey: proposerKey.publicKey
+  });
   state.votes = [];
   state.resultBlock = null;
   notify('근거리 게시 완료');
@@ -174,20 +173,12 @@ export async function castVote(participantId, selectedChoice = null) {
   if (!state.activePoll) return;
   const participant = participants.find((item) => item.id === participantId);
   const key = state.keys.get(participantId);
-  const choice = selectedChoice || state.activePoll.options[Math.floor(Math.random() * state.activePoll.options.length)];
-  const unsignedVote = {
-    pollId: state.activePoll.pollId,
-    voterId: participantId,
-    voterDisplayId: participant.displayId,
-    voterPublicKey: key.publicKey,
-    choice,
-    createdAt: new Date().toISOString()
-  };
-  const vote = {
-    ...unsignedVote,
-    voteHash: await digest(unsignedVote),
-    signature: await signPayload(key.pair.privateKey, unsignedVote)
-  };
+  const vote = await createSignedVote({
+    poll: state.activePoll,
+    participant,
+    key,
+    choice: selectedChoice
+  });
 
   participant.voted = true;
   state.votes = state.votes.filter((item) => item.voterId !== participantId).concat(vote);
@@ -195,41 +186,20 @@ export async function castVote(participantId, selectedChoice = null) {
 
 export async function finalizePoll() {
   if (!state.activePoll || state.resultBlock) return state.resultBlock;
-  if (new Date(state.activePoll.deadline).getTime() > Date.now()) {
+  if (!hasPollExpired(state.activePoll)) {
     notify('제한 시간 진행 중');
     return null;
   }
 
-  const counts = Object.fromEntries(state.activePoll.options.map((option) => [option, 0]));
-  for (const vote of state.votes) {
-    counts[vote.choice] = (counts[vote.choice] || 0) + 1;
-  }
-
-  const blockBody = {
-    index: 1,
-    pollId: state.activePoll.pollId,
-    question: state.activePoll.question,
-    previousHash: 'GENESIS',
-    createdAt: new Date().toISOString(),
-    proposerId: 'proposer',
-    proposerDisplayId: state.userId,
-    votesRoot: await digest(state.votes.map((vote) => vote.voteHash)),
-    result: counts,
-    voteCount: state.votes.length,
-    participantCount: participants.filter((participant) => participant.joined).length,
-    participantIds: participants.filter((participant) => participant.joined).map((participant) => participant.displayId)
-  };
-  const blockHash = await digest(blockBody);
+  const proposer = participants.find((participant) => participant.id === 'proposer');
   const proposerKey = state.keys.get('proposer');
-  state.resultBlock = {
-    ...blockBody,
-    blockHash,
-    proposerSignature: await signPayload(proposerKey.pair.privateKey, blockBody),
-    replicatedTo: participants.filter((participant) => participant.joined).map((participant) => participant.id),
-    includedVoters: state.votes.map((vote) => vote.voterId),
-    includedVoterIds: state.votes.map((vote) => vote.voterDisplayId),
-    verified: blockHash === await digest(blockBody)
-  };
+  state.resultBlock = await createResultBlock({
+    poll: state.activePoll,
+    votes: state.votes,
+    participants,
+    proposer,
+    proposerKey
+  });
   state.ledgerHistory = [state.resultBlock, ...state.ledgerHistory].slice(0, 20);
   saveLedgerHistory();
   notify('결과 원장 공유 완료');
