@@ -19,6 +19,22 @@ class NearVoteStore(context: Context) {
         prefs.edit().putString(KEY_IDENTITY, identity).apply()
     }
 
+    fun loadUserId(fallback: () -> String): String {
+        val saved = prefs.getString(KEY_USER_ID, null)
+        if (!saved.isNullOrBlank()) return saved
+        val generated = fallback()
+        prefs.edit().putString(KEY_USER_ID, generated).apply()
+        return generated
+    }
+
+    fun isAutoConnectEnabled(): Boolean {
+        return prefs.getBoolean(KEY_AUTO_CONNECT, true)
+    }
+
+    fun saveAutoConnectEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_CONNECT, enabled).apply()
+    }
+
     fun saveReceipt(receipt: VoteReceipt) {
         val receipts = JSONObject(prefs.getString(KEY_RECEIPTS, "{}").orEmpty().ifBlank { "{}" })
         receipts.put(receipt.pollId, receipt.toJson())
@@ -87,6 +103,8 @@ class NearVoteStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "near_vote_prefs"
         private const val KEY_IDENTITY = "identity"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_AUTO_CONNECT = "auto_connect"
         private const val KEY_RECEIPTS = "receipts"
         private const val KEY_RESULTS = "results"
         private const val KEY_TEMPLATES = "templates"

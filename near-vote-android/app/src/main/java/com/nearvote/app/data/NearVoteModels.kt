@@ -7,12 +7,14 @@ import java.security.MessageDigest
 data class VoteReceipt(
     val pollId: String,
     val voterId: String,
+    val voterName: String,
     val voteHash: String
 ) {
     fun toJson(): JSONObject {
         return JSONObject()
             .put("pollId", pollId)
             .put("voterId", voterId)
+            .put("voterName", voterName)
             .put("voteHash", voteHash)
     }
 
@@ -21,6 +23,7 @@ data class VoteReceipt(
             return VoteReceipt(
                 pollId = json.getString("pollId"),
                 voterId = json.getString("voterId"),
+                voterName = json.optString("voterName", json.getString("voterId")),
                 voteHash = json.getString("voteHash")
             )
         }
@@ -30,10 +33,12 @@ data class VoteReceipt(
 data class SharedResult(
     val pollId: String,
     val proposerId: String,
+    val proposerName: String,
     val question: String,
     val options: List<String>,
     val counts: Map<String, Int>,
     val participantIds: List<String>,
+    val participantNames: List<String>,
     val participantCount: Int,
     val resultHash: String
 ) {
@@ -42,10 +47,12 @@ data class SharedResult(
         counts.forEach { (option, count) -> countJson.put(option, count) }
         return JSONObject()
             .put("pollId", pollId)
+            .put("proposerName", proposerName)
             .put("question", question)
             .put("options", JSONArray(options))
             .put("counts", countJson)
             .put("participantIds", JSONArray(participantIds))
+            .put("participantNames", JSONArray(participantNames))
             .put("participantCount", participantCount)
             .put("resultHash", resultHash)
             .toString()
@@ -57,10 +64,12 @@ data class SharedResult(
         return JSONObject()
             .put("pollId", pollId)
             .put("proposerId", proposerId)
+            .put("proposerName", proposerName)
             .put("question", question)
             .put("options", JSONArray(options))
             .put("counts", countJson)
             .put("participantIds", JSONArray(participantIds))
+            .put("participantNames", JSONArray(participantNames))
             .put("participantCount", participantCount)
             .put("resultHash", resultHash)
     }
@@ -115,13 +124,21 @@ data class SharedResult(
             } else {
                 (0 until participantIdsArray.length()).map { participantIdsArray.getString(it) }
             }
+            val participantNamesArray = payload.optJSONArray("participantNames")
+            val participantNames = if (participantNamesArray == null) {
+                participantIds
+            } else {
+                (0 until participantNamesArray.length()).map { participantNamesArray.getString(it) }
+            }
             return SharedResult(
                 pollId = payload.getString("pollId"),
                 proposerId = proposerId,
+                proposerName = payload.optString("proposerName", proposerId),
                 question = payload.getString("question"),
                 options = options,
                 counts = options.associateWith { countsJson.optInt(it, 0) },
                 participantIds = participantIds,
+                participantNames = participantNames,
                 participantCount = payload.getInt("participantCount"),
                 resultHash = payload.getString("resultHash")
             )
@@ -132,6 +149,7 @@ data class SharedResult(
 data class NearbyPoll(
     val id: String,
     val proposerId: String,
+    val proposerName: String,
     val question: String,
     val options: List<String>,
     val durationMinutes: Int,
@@ -140,6 +158,7 @@ data class NearbyPoll(
     fun toPayloadJson(): String {
         return JSONObject()
             .put("pollId", id)
+            .put("proposerName", proposerName)
             .put("question", question)
             .put("options", JSONArray(options))
             .put("durationMinutes", durationMinutes)
@@ -171,6 +190,7 @@ data class NearbyPoll(
             return NearbyPoll(
                 id = payload.getString("pollId"),
                 proposerId = proposerId,
+                proposerName = payload.optString("proposerName", proposerId),
                 question = payload.getString("question"),
                 options = options,
                 durationMinutes = payload.optInt("durationMinutes", 5),
