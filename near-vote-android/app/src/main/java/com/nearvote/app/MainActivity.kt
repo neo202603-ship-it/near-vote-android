@@ -451,16 +451,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             val count = result.counts[option] ?: 0
             page.addView(resultRow(option, count, count * 100 / total))
         }
-        page.addView(statusCard(
-            "참여자 ${result.participantCount}명",
-            result.participantNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "참여자 목록 없음"
-        ))
-        page.addView(statusCard(
-            if (result.isHashValid()) "검증 완료" else "검증 필요",
-            "결과 해시 ${result.resultHash.take(16)}"
-        ))
+        page.addView(label("참여자 ${result.participantCount}명 · 선택 내역"))
         if (result.participantSelections.isNotEmpty()) {
-            page.addView(label("선택 내역"))
             result.options.forEach { option ->
                 val names = result.participantIds.mapIndexedNotNull { index, participantId ->
                     if (result.participantSelections[participantId] == option) {
@@ -473,7 +465,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     page.addView(statusCard(option, names.joinToString(", ")))
                 }
             }
+        } else {
+            page.addView(statusCard(
+                "참여자",
+                result.participantNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "참여자 목록 없음"
+            ))
         }
+        page.addView(label("검증 정보"))
+        page.addView(statusCard(
+            if (result.isHashValid()) "검증 완료" else "검증 필요",
+            "결과 해시 ${result.resultHash.take(16)}"
+        ))
         (latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId))?.let {
             page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
         }
