@@ -20,6 +20,7 @@ import com.nearvote.app.protocol.NearVoteMessageType
 import com.nearvote.app.simulation.LocalVoteSimulator
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 
 class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
@@ -31,7 +32,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private var connectedCount = 0
     private var activePoll: NearbyPoll? = null
     private var incomingPoll: NearbyPoll? = null
+    private var latestReceipt: VoteReceipt? = null
+    private var sharedResult: SharedResult? = null
     private val receivedVotes = linkedMapOf<String, String>()
+    private val submittedVotes = linkedMapOf<String, String>()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -95,6 +99,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         incomingPoll?.let { poll ->
             page.addView(outlineButton("받은 투표 참여하기") { showVotePoll(poll) })
         }
+        sharedResult?.let {
+            page.addView(outlineButton("공유받은 결과 보기") { showSharedResult(it) })
+        }
         page.addView(quietButton("개발자 진단") { showDiagnostics() })
     }
 
@@ -148,6 +155,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             page.addView(statusCard("참여자 ${receivedVotes.size}명", receivedVotes.keys.joinToString(", ")))
         }
+        if (receivedVotes.isNotEmpty()) {
+            page.addView(primaryButton("결과 공유하기") { shareResultBlock(poll) })
+        }
         page.addView(outlineButton("주변 연결 다시 시작") { startNearbyConnectionTest() })
         page.addView(outlineButton("홈으로") { showHome() })
     }
@@ -168,7 +178,32 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         setPage()
         page.addView(topBar("투표 완료"))
         page.addView(statusCard("내 표를 보냈습니다", "${poll.question} · $option"))
-        page.addView(bodyText("제안자 기기에 투표 메시지가 전달되면 결과 집계에 반영됩니다."))
+        val receipt = latestReceipt
+        if (receipt == null || receipt.pollId != poll.id) {
+            page.addView(bodyText("제안자 기기에 투표 메시지가 전달되면 영수증이 도착합니다."))
+        } else {
+            page.addView(statusCard("영수증 수신 완료", "내 표 해시 ${receipt.voteHash.take(16)}"))
+        }
+        sharedResult?.takeIf { it.pollId == poll.id }?.let {
+            page.addView(primaryButton("결과 보기") { showSharedResult(it) })
+        }
+        page.addView(outlineButton("홈으로") { showHome() })
+    }
+
+    private fun showSharedResult(result: SharedResult) {
+        setPage()
+        page.addView(topBar("공유받은 결과"))
+        page.addView(infoCard("설문", result.question, "제안자: ${result.proposerId}"))
+        page.addView(label("결과"))
+        val total = result.counts.values.sum().coerceAtLeast(1)
+        result.options.forEach { option ->
+            val count = result.counts[option] ?: 0
+            page.addView(resultRow(option, count, count * 100 / total))
+        }
+        page.addView(statusCard("검증 정보", "참여자 ${result.participantCount}명 · 결과 해시 ${result.resultHash.take(16)}"))
+        latestReceipt?.takeIf { it.pollId == result.pollId }?.let {
+            page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
+        }
         page.addView(outlineButton("홈으로") { showHome() })
     }
 
@@ -484,6 +519,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             receivedVotes[selfName] = option
             showPublishedPoll(poll)
         } else {
+            submittedVotes[poll.id] = option
             showVoteSubmitted(poll, option)
         }
     }
@@ -511,10 +547,73 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val option = payload.optString("option")
                 if (option.isBlank()) return
                 receivedVotes[voterId] = option
+                sendReceipt(poll, voterId, option)
                 runOnUiThread { showPublishedPoll(poll) }
+            }
+            NearVoteMessageType.RECEIPT -> {
+                val payload = JSONObject(message.payloadJson)
+                val receipt = VoteReceipt(
+                    pollId = payload.getString("pollId"),
+                    voterId = payload.getString("voterId"),
+                    voteHash = payload.getString("voteHash")
+                )
+                if (receipt.voterId == selfName) {
+                    latestReceipt = receipt
+                    incomingPoll?.takeIf { it.id == receipt.pollId }?.let { poll ->
+                        runOnUiThread { showVoteSubmitted(poll, submittedVotes[receipt.pollId] ?: "선택 완료") }
+                    }
+                }
+            }
+            NearVoteMessageType.RESULT_BLOCK -> {
+                val result = runCatching { SharedResult.fromPayload(message.senderId, message.payloadJson) }.getOrElse {
+                    appendLog("결과 블록을 읽지 못함")
+                    return
+                }
+                if (result.proposerId == selfName) return
+                sharedResult = result
+                runOnUiThread { showSharedResult(result) }
             }
             else -> Unit
         }
+    }
+
+    private fun sendReceipt(poll: NearbyPoll, voterId: String, option: String) {
+        val voteHash = hash("${poll.id}:$voterId:$option")
+        nearby.sendToAll(
+            NearVoteMessage(
+                type = NearVoteMessageType.RECEIPT,
+                senderId = selfName,
+                payloadJson = JSONObject()
+                    .put("pollId", poll.id)
+                    .put("voterId", voterId)
+                    .put("voteHash", voteHash)
+                    .toString()
+            ).toJson()
+        )
+    }
+
+    private fun shareResultBlock(poll: NearbyPoll) {
+        val counts = poll.options.associateWith { option ->
+            receivedVotes.values.count { it == option }
+        }
+        val result = SharedResult(
+            pollId = poll.id,
+            proposerId = selfName,
+            question = poll.question,
+            options = poll.options,
+            counts = counts,
+            participantCount = receivedVotes.size,
+            resultHash = hash(receivedVotes.entries.joinToString("|") { "${it.key}:${it.value}" })
+        )
+        sharedResult = result
+        nearby.sendToAll(
+            NearVoteMessage(
+                type = NearVoteMessageType.RESULT_BLOCK,
+                senderId = selfName,
+                payloadJson = result.toPayloadJson()
+            ).toJson()
+        )
+        showSharedResult(result)
     }
 
     private fun requestNearbyPermissions() {
@@ -558,6 +657,58 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private fun hash(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private data class VoteReceipt(
+        val pollId: String,
+        val voterId: String,
+        val voteHash: String
+    )
+
+    private data class SharedResult(
+        val pollId: String,
+        val proposerId: String,
+        val question: String,
+        val options: List<String>,
+        val counts: Map<String, Int>,
+        val participantCount: Int,
+        val resultHash: String
+    ) {
+        fun toPayloadJson(): String {
+            val countJson = JSONObject()
+            counts.forEach { (option, count) -> countJson.put(option, count) }
+            return JSONObject()
+                .put("pollId", pollId)
+                .put("question", question)
+                .put("options", JSONArray(options))
+                .put("counts", countJson)
+                .put("participantCount", participantCount)
+                .put("resultHash", resultHash)
+                .toString()
+        }
+
+        companion object {
+            fun fromPayload(proposerId: String, payloadJson: String): SharedResult {
+                val payload = JSONObject(payloadJson)
+                val optionsArray = payload.getJSONArray("options")
+                val options = (0 until optionsArray.length()).map { optionsArray.getString(it) }
+                val countsJson = payload.getJSONObject("counts")
+                return SharedResult(
+                    pollId = payload.getString("pollId"),
+                    proposerId = proposerId,
+                    question = payload.getString("question"),
+                    options = options,
+                    counts = options.associateWith { countsJson.optInt(it, 0) },
+                    participantCount = payload.getInt("participantCount"),
+                    resultHash = payload.getString("resultHash")
+                )
+            }
+        }
     }
 
     private data class NearbyPoll(
