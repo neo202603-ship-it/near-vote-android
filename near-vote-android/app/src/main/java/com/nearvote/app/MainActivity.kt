@@ -452,12 +452,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(resultRow(option, count, count * 100 / total))
         }
         page.addView(statusCard(
-            if (result.isHashValid()) "검증 완료" else "검증 필요",
-            "참여자 ${result.participantCount}명 · 결과 해시 ${result.resultHash.take(16)}"
+            "참여자 ${result.participantCount}명",
+            result.participantNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "참여자 목록 없음"
         ))
-        if (result.participantNames.isNotEmpty()) {
-            page.addView(statusCard("참여자", result.participantNames.joinToString(", ")))
-        }
+        page.addView(statusCard(
+            if (result.isHashValid()) "검증 완료" else "검증 필요",
+            "결과 해시 ${result.resultHash.take(16)}"
+        ))
         if (result.participantSelections.isNotEmpty()) {
             page.addView(label("선택 내역"))
             result.options.forEach { option ->
