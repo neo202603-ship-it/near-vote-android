@@ -85,12 +85,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun requestNearbyPermissions() {
         val permissions = buildList {
-            if (Build.VERSION.SDK_INT <= 28) {
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            }
-            if (Build.VERSION.SDK_INT in 29..31) {
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+
             if (Build.VERSION.SDK_INT >= 31) {
                 add(Manifest.permission.BLUETOOTH_ADVERTISE)
                 add(Manifest.permission.BLUETOOTH_CONNECT)
