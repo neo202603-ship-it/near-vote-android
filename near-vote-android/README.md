@@ -44,6 +44,8 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 - 시뮬레이션 결과: 참여자, 선택지, 결과, 영수증/해시 요약
 - 개발자 진단: 광고, 탐색, PING, 상세 로그
 
+홈과 주요 화면은 사용자 행동 중심 카드로 구성하고, Nearby 광고/탐색/PING 같은 개발용 기능은 개발자 진단 화면에만 둡니다.
+
 ## 참고
 
 - Nearby Connections 공식 시작 문서: https://developers.google.com/nearby/connections/android/get-started

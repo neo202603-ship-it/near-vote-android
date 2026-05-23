@@ -73,7 +73,14 @@ class LocalVoteSimulator(
             question = question,
             options = options,
             participantIds = participantIds,
-            resultLines = options.map { option -> "$option ${counts[option] ?: 0}표" },
+            resultLines = options.map { option ->
+                val count = counts[option] ?: 0
+                ResultLine(
+                    option = option,
+                    count = count,
+                    percent = if (votes.isEmpty()) 0 else count * 100 / votes.size
+                )
+            },
             receiptCount = votes.size,
             resultHash = sha256(votes.joinToString("|") { "${it.voterId}:${it.option}:${it.voteHash}" }).take(16)
         )
@@ -83,9 +90,15 @@ class LocalVoteSimulator(
         val question: String,
         val options: List<String>,
         val participantIds: List<String>,
-        val resultLines: List<String>,
+        val resultLines: List<ResultLine>,
         val receiptCount: Int,
         val resultHash: String
+    )
+
+    data class ResultLine(
+        val option: String,
+        val count: Int,
+        val percent: Int
     )
 
     private data class LocalVote(
