@@ -294,6 +294,15 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.receipt-card.warning {
+  border-color: rgba(184, 74, 58, 0.32);
+  background: #fff7f5;
+}
+
+.receipt-card.warning span {
+  color: var(--warn);
+}
+
 .recent-result-card {
   display: grid;
   gap: 14px;

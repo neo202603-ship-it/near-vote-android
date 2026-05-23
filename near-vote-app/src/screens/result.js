@@ -1,5 +1,5 @@
 import { state } from '../core/store.js';
-import { isReceiptIncluded } from '../core/protocol.js';
+import { auditGossipAgainstBlock, isReceiptIncluded } from '../core/protocol.js';
 import { emptyState, escapeHtml } from '../core/view.js';
 
 export function resultScreen() {
@@ -10,6 +10,7 @@ export function resultScreen() {
   const participantCount = block.participantCount || participantIds.length || block.voteCount || 0;
   const myReceipt = state.receipts.find((receipt) => receipt.pollId === block.pollId && receipt.voterId === 'proposer');
   const receiptIncluded = isReceiptIncluded(myReceipt, block);
+  const gossipAudit = auditGossipAgainstBlock(state.gossipMessages, block);
 
   return `
     <section class="panel result-panel">
@@ -38,6 +39,11 @@ export function resultScreen() {
           <small>${escapeHtml(myReceipt.voteHash.slice(0, 24))}</small>
         </div>
       ` : ''}
+      <div class="receipt-card result-receipt ${gossipAudit.ok ? '' : 'warning'}">
+        <span>투표 해시 공유 감사</span>
+        <strong>${gossipAudit.ok ? '누락 없음' : '누락 감지'}</strong>
+        <small>관찰 ${gossipAudit.observedHashCount}개 · 누락 ${gossipAudit.missingHashes.length}개</small>
+      </div>
       <div class="result-grid">
         ${Object.entries(block.result).map(([option, count]) => `
           <article class="result-row">
@@ -52,7 +58,8 @@ export function resultScreen() {
         votesRoot: block.votesRoot.slice(0, 24),
         blockHash: block.blockHash.slice(0, 24),
         participantIds,
-        includedVoterIds
+        includedVoterIds,
+        gossipAudit
       }, null, 2))}</pre>
     </section>
   `;

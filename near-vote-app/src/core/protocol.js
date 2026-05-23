@@ -43,6 +43,17 @@ export function createVoteReceipt({ vote, receivedBy, now = new Date() }) {
   };
 }
 
+export function createVoteHashGossip({ poll, observer, votes, now = new Date() }) {
+  return {
+    gossipId: `gossip_${observer.id}_${now.getTime().toString(36)}`,
+    pollId: poll.pollId,
+    observerId: observer.id,
+    observerDisplayId: observer.displayId,
+    observedVoteHashes: votes.map((vote) => vote.voteHash),
+    observedAt: now.toISOString()
+  };
+}
+
 export async function createResultBlock({ poll, votes, participants, proposer, proposerKey, now = new Date() }) {
   const joinedParticipants = participants.filter((participant) => participant.joined);
   const result = Object.fromEntries(poll.options.map((option) => [option, 0]));
@@ -74,6 +85,7 @@ export async function createResultBlock({ poll, votes, participants, proposer, p
     replicatedTo: joinedParticipants.map((participant) => participant.id),
     includedVoters: votes.map((vote) => vote.voterId),
     includedVoterIds: votes.map((vote) => vote.voterDisplayId),
+    includedVoteHashes: votes.map((vote) => vote.voteHash),
     verified: await verifyResultBlock(blockBody, blockHash)
   };
 }
@@ -89,4 +101,23 @@ export function hasPollExpired(poll, now = new Date()) {
 export function isReceiptIncluded(receipt, block) {
   if (!receipt || !block) return false;
   return block.includedVoters.includes(receipt.voterId);
+}
+
+export function auditGossipAgainstBlock(gossipMessages, block) {
+  if (!block) {
+    return {
+      observedHashCount: 0,
+      missingHashes: [],
+      ok: false
+    };
+  }
+
+  const observedHashes = [...new Set(gossipMessages.flatMap((message) => message.observedVoteHashes))];
+  const missingHashes = observedHashes.filter((hash) => !block.includedVoteHashes?.includes(hash));
+
+  return {
+    observedHashCount: observedHashes.length,
+    missingHashes,
+    ok: missingHashes.length === 0
+  };
 }
