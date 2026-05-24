@@ -574,27 +574,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val total = result.counts.values.sum().coerceAtLeast(1)
         result.options.forEach { option ->
             val count = result.counts[option] ?: 0
-            page.addView(resultRow(option, count, count * 100 / total))
-        }
-        page.addView(label("참여자 ${result.participantCount}명 · 선택 내역"))
-        if (result.participantSelections.isNotEmpty()) {
-            result.options.forEach { option ->
-                val names = result.participantIds.mapIndexedNotNull { index, participantId ->
-                    if (result.participantSelections[participantId] == option) {
-                        result.participantNames.getOrNull(index) ?: participantId.take(8)
-                    } else {
-                        null
-                    }
+            val participants = if (result.participantSelections.isNotEmpty()) {
+                result.participantIds.mapIndexedNotNull { index, participantId ->
+                    val selected = result.participantSelections[participantId] == option
+                    if (selected) result.participantNames.getOrNull(index) ?: participantId.take(8) else null
                 }
-                if (names.isNotEmpty()) {
-                    page.addView(statusCard(option, names.joinToString(", ")))
-                }
+            } else {
+                emptyList()
             }
-        } else {
-            page.addView(statusCard(
-                "참여자",
-                result.participantNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "참여자 목록 없음"
-            ))
+            page.addView(resultRow(option, count, count * 100 / total, participants))
+        }
+        if (result.participantSelections.isEmpty() && result.participantNames.isNotEmpty()) {
+            page.addView(participantSnackBar("참여자 ${result.participantCount}명", result.participantNames).apply {
+                layoutParams = blockParams()
+            })
         }
         page.addView(label("검증 정보"))
         page.addView(statusCard(
@@ -997,7 +990,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun resultRow(option: String, count: Int, percent: Int): LinearLayout {
+    private fun resultRow(
+        option: String,
+        count: Int,
+        percent: Int,
+        participants: List<String> = emptyList()
+    ): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(15), dp(18), dp(15))
@@ -1034,6 +1032,26 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, (100 - percent.coerceIn(0, 100)).toFloat())
                 })
             })
+            if (participants.isNotEmpty()) {
+                addView(participantSnackBar("선택한 참여자 ${participants.size}명", participants).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = dp(12)
+                    }
+                })
+            }
+        }
+    }
+
+    private fun participantSnackBar(title: String, participants: List<String>): TextView {
+        return TextView(this).apply {
+            text = "$title · ${participants.joinToString(", ")}"
+            textSize = 13f
+            setTextColor(0xFF245341.toInt())
+            setPadding(dp(14), dp(9), dp(14), dp(9))
+            background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
         }
     }
 
