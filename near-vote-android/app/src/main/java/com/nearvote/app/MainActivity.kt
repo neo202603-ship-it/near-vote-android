@@ -143,10 +143,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
             showCompose()
         })
-        val incomingCount = visibleIncomingPolls().size
-        page.addView(actionCard("진행중인 투표(${incomingCount}건)", "근처에서 받은 투표 요청을 확인합니다.") {
-            showDiscover()
-        })
     }
 
     private fun addCurrentSessionCards() {
