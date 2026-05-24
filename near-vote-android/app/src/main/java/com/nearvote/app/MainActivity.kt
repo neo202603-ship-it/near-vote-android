@@ -1,6 +1,7 @@
 package com.nearvote.app
 
 import android.Manifest
+import android.app.AlertDialog
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -125,9 +126,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(breadcrumb("홈"))
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
-        page.addView(sectionTitle("현재 상태"))
-        connectionStatusView = connectionBadge()
-        page.addView(connectionStatusView)
         addCurrentSessionCards()
         page.addView(sectionTitle("주요 작업"))
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
@@ -671,8 +669,27 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 if (connectedCount == 0) 0xFFF0B7B7.toInt() else 0xFFB7D0F5.toInt()
             )
             layoutParams = LinearLayout.LayoutParams(dp(42), dp(36))
+            setOnClickListener { showConnectionPopup() }
             topConnectionBadgeView = this
         }
+    }
+
+    private fun showConnectionPopup() {
+        val peers = nearby.connectedPeerNames()
+        val message = if (peers.isEmpty()) {
+            if (autoConnectEnabled) {
+                "현재 연결된 기기가 없습니다.\n앱은 주변 기기를 자동으로 찾고 있습니다."
+            } else {
+                "현재 연결된 기기가 없습니다.\n설정에서 자동 연결을 켜면 주변 기기를 찾습니다."
+            }
+        } else {
+            peers.joinToString(separator = "\n") { name -> "• $name" }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("접속자 ${connectedCount}명")
+            .setMessage(message)
+            .setPositiveButton("확인", null)
+            .show()
     }
 
     private fun breadcrumb(vararg items: String): TextView {
