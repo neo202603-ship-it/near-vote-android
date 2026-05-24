@@ -514,8 +514,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             page.addView(statusCard("참여자 ${receivedVotes.size}명", receivedVoteNames.values.joinToString(", ")))
         }
-        if (receivedVotes.isNotEmpty() && !sharedResultPollIds.contains(poll.id)) {
-            page.addView(primaryButton(if (ended) "결과 공유하기" else "지금 결과 공유하기") { shareResultBlock(poll) })
+        if (!sharedResultPollIds.contains(poll.id)) {
+            page.addView(primaryButton("투표 종료") { endPollAndShareResult(poll) })
         }
     }
 
@@ -1676,6 +1676,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         store.saveResult(result)
         sendResultBlock(result)
         showSharedResult(result)
+    }
+
+    private fun endPollAndShareResult(poll: NearbyPoll) {
+        val endedPoll = poll.copy(endAtMillis = System.currentTimeMillis())
+        activePolls[poll.id] = endedPoll
+        shareResultBlock(endedPoll)
     }
 
     private fun sendResultBlock(result: SharedResult) {
