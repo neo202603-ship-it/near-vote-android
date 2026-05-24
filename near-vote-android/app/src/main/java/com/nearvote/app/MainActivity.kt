@@ -138,8 +138,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     override fun onConnectionCountChanged(count: Int) {
+        val countChanged = connectedCount != count
         connectedCount = count
-        updateConnectionStatus()
+        updateConnectionStatus(animateBadge = countChanged)
     }
 
     private fun showHome() {
@@ -298,7 +299,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
                 return@primaryButton
             }
-            publishPoll(question, options, durationSeconds.coerceIn(30, 3_600))
+            val publish = {
+                publishPoll(question, options, durationSeconds.coerceIn(30, 3_600))
+            }
+            if (connectedCount == 0) {
+                confirmPublishingWithoutPeers(publish)
+            } else {
+                publish()
+            }
         }
         val saveTemplateButton = outlineButton("템플릿으로 저장") {
             val template = buildTemplateFromInputs(questionInput, optionEditor.values(), durationInput) ?: return@outlineButton
@@ -1627,7 +1635,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         Toast.makeText(this, if (enabled) "자동 연결 켜짐" else "자동 연결 꺼짐", Toast.LENGTH_SHORT).show()
     }
 
-    private fun updateConnectionStatus() {
+    private fun updateConnectionStatus(animateBadge: Boolean = false) {
         runOnUiThread {
             if (::connectionStatusView.isInitialized) {
                 connectionStatusView.text = connectionBadgeText()
@@ -1638,8 +1646,31 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 badge.text = topConnectionBadgeText()
                 badge.setTextColor(connectionBadgeTextColor())
                 badge.background = rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
+                if (animateBadge) {
+                    animateConnectionBadge(badge)
+                }
             }
         }
+    }
+
+    private fun animateConnectionBadge(badge: TextView) {
+        badge.animate().cancel()
+        badge.scaleX = 0.88f
+        badge.scaleY = 0.88f
+        badge.alpha = 0.72f
+        badge.animate()
+            .scaleX(1.08f)
+            .scaleY(1.08f)
+            .alpha(1f)
+            .setDuration(140L)
+            .withEndAction {
+                badge.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(120L)
+                    .start()
+            }
+            .start()
     }
 
     private fun topConnectionBadgeText(): String {
@@ -1806,6 +1837,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sendPoll(poll)
         scheduleResultShare(poll)
         showPublishedPoll(poll)
+    }
+
+    private fun confirmPublishingWithoutPeers(onConfirm: () -> Unit) {
+        val connectionHint = if (autoConnectEnabled) {
+            "새로 연결되는 기기에는 진행 중인 투표가 자동 전달됩니다."
+        } else {
+            "자동 연결이 꺼져 있어, 먼저 연결을 켜는 편이 좋습니다."
+        }
+        AlertDialog.Builder(this)
+            .setTitle("접속자 없이 게시할까요?")
+            .setMessage("현재 연결된 접속자가 없습니다.\n투표 제한시간은 게시하는 즉시 시작됩니다.\n\n$connectionHint")
+            .setPositiveButton("그래도 게시") { _, _ -> onConfirm() }
+            .setNegativeButton("기다리기", null)
+            .show()
     }
 
     private fun sendPoll(poll: NearbyPoll) {
