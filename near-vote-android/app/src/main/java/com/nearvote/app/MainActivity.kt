@@ -859,20 +859,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun durationChoiceGrid(durationInput: EditText): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = blockParams()
-            addView(buttonRow(
-                compactButton("30초", BUTTON_CHOICE) { durationInput.setText("30") },
-                compactButton("1분", BUTTON_CHOICE) { durationInput.setText("60") },
-                compactButton("5분", BUTTON_CHOICE) { durationInput.setText("300") }
-            ).apply { layoutParams = compactBlockParams() })
-            addView(buttonRow(
-                compactButton("10분", BUTTON_CHOICE) { durationInput.setText("600") },
-                compactButton("15분", BUTTON_CHOICE) { durationInput.setText("900") },
-                compactButton("30분", BUTTON_CHOICE) { durationInput.setText("1800") }
-            ).apply { layoutParams = compactBlockParams() })
-        }
+        return compactButtonRow(
+            compactButton("30초", BUTTON_CHOICE) { durationInput.setText("30") },
+            compactButton("1분", BUTTON_CHOICE) { durationInput.setText("60") },
+            compactButton("5분", BUTTON_CHOICE) { durationInput.setText("300") },
+            compactButton("10분", BUTTON_CHOICE) { durationInput.setText("600") },
+            compactButton("15분", BUTTON_CHOICE) { durationInput.setText("900") },
+            compactButton("30분", BUTTON_CHOICE) { durationInput.setText("1800") }
+        )
     }
 
     private fun sectionTitle(text: String): TextView {
@@ -897,6 +891,23 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 button.layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                     if (index < buttons.lastIndex) {
                         rightMargin = dp(8)
+                    }
+                }
+                addView(button)
+            }
+        }
+    }
+
+    private fun compactButtonRow(vararg buttons: Button): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = blockParams()
+            buttons.forEachIndexed { index, button ->
+                button.textSize = 12f
+                button.setPadding(0, 0, 0, 0)
+                button.layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                    if (index < buttons.lastIndex) {
+                        rightMargin = dp(4)
                     }
                 }
                 addView(button)
@@ -1388,15 +1399,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             bottomMargin = dp(12)
-        }
-    }
-
-    private fun compactBlockParams(): LinearLayout.LayoutParams {
-        return LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            bottomMargin = dp(8)
         }
     }
 
