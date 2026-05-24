@@ -2120,6 +2120,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             val totalMillis = (poll.durationSeconds * 1_000L).coerceAtLeast(1L)
             val remainingMillis = (poll.endAtMillis - System.currentTimeMillis()).coerceIn(0L, totalMillis)
             val ratio = remainingMillis.toFloat() / totalMillis.toFloat()
+            val isUrgent = remainingMillis <= URGENT_COUNTDOWN_MS
+
+            progressPaint.color = if (isUrgent) 0xFFD33737.toInt() else 0xFF176B4D.toInt()
+            timePaint.color = if (isUrgent) 0xFFC82424.toInt() else 0xFF10251D.toInt()
+            titlePaint.color = if (isUrgent) 0xFFD33737.toInt() else 0xFF647268.toInt()
 
             canvas.drawArc(bounds, -90f, 360f, false, trackPaint)
             canvas.drawArc(bounds, -90f, 360f * ratio, false, progressPaint)
@@ -2191,6 +2196,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     companion object {
         private const val NEARBY_HEARTBEAT_MS = 30_000L
         private const val CONNECTION_SYNC_DELAY_MS = 500L
+        private const val URGENT_COUNTDOWN_MS = 10_000L
         private const val BUTTON_PRIMARY = 1
         private const val BUTTON_OUTLINE = 2
         private const val BUTTON_QUIET = 3
