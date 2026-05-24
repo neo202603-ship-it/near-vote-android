@@ -192,7 +192,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sharedResult?.let { result ->
             hasSession = true
             page.addView(sectionTitle("최근 투표"))
-            page.addView(resultActionCard(result.question, resultMetadata(result, "참여자 ${result.participantCount}명", "검증 ${if (result.isHashValid()) "완료" else "필요"}"), result) {
+            page.addView(resultActionCard(result.question, resultMetadata("참여자 ${result.participantCount}명", "검증 ${if (result.isHashValid()) "완료" else "필요"}"), result) {
                 showSharedResult(result)
             })
         }
@@ -217,7 +217,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(primaryButton("투표 만들기") { showCompose() })
         } else {
             results.forEach { result ->
-                page.addView(resultActionCard(result.question, resultMetadata(result, friendlyTime(result.createdAtMillis), "참여자 ${result.participantCount}명"), result) {
+                page.addView(resultActionCard(result.question, resultMetadata(friendlyTime(result.createdAtMillis), "참여자 ${result.participantCount}명"), result) {
                     showSharedResult(result)
                 })
             }
@@ -639,7 +639,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showSharedResult(result) }
         page.addView(breadcrumb("홈", "결과", if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
         page.addView(topBar(if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
-        page.addView(avatarInfoCard("투표", result.question, resultMetadata(result, "제안자: ${result.proposerName}", friendlyTime(result.createdAtMillis)), resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
+        page.addView(avatarInfoCard("투표", result.question, resultMetadata("제안자: ${result.proposerName}", friendlyTime(result.createdAtMillis)), resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
         result.options.forEach { option ->
@@ -1946,9 +1946,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return result.proposerId == userId
     }
 
-    private fun resultMetadata(result: SharedResult, vararg details: String): String {
-        val prefix = if (isMyResult(result)) emptyList() else listOf("공유받은 투표")
-        return (prefix + details).joinToString(" · ")
+    private fun resultMetadata(vararg details: String): String {
+        return details.joinToString(" · ")
     }
 
     private fun friendlyTime(timestampMillis: Long): String {
