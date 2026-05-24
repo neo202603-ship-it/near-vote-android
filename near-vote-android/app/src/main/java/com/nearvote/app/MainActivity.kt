@@ -1457,7 +1457,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                             }
                         })
                         addView(TextView(context).apply {
-                            text = "#$participant"
+                            text = participant
                             textSize = 13f
                             setTextColor(0xFF245341.toInt())
                         })
