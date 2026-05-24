@@ -269,18 +269,18 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
         val selectedTemplate = template ?: store.loadTemplates().first()
         val questionInput = inputBox("질문", selectedTemplate.question)
-        val optionsInput = inputBox("선택지", selectedTemplate.options.joinToString("\n"), multiLine = true)
+        val optionEditor = OptionTagEditor(selectedTemplate.options)
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
 
         page.addView(label("템플릿"))
         page.addView(outlineButton("템플릿 선택") {
-            showTemplatePicker(questionInput.text.toString(), optionsInput.text.toString(), durationInput.text.toString())
+            showTemplatePicker(questionInput.text.toString(), optionEditor.values().joinToString("\n"), durationInput.text.toString())
         })
 
         page.addView(label("질문"))
         page.addView(questionInput)
         page.addView(label("선택지"))
-        page.addView(optionsInput)
+        page.addView(optionEditor.view)
         page.addView(label("제한시간"))
         page.addView(durationChoiceGrid(durationInput))
         page.addView(label("직접 입력(초)"))
@@ -288,11 +288,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
         val publishButton = primaryButton("게시하기") {
             val question = questionInput.text.toString().trim()
-            val options = optionsInput.text.toString()
-                .lines()
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .distinct()
+            val options = optionEditor.values()
             val durationSeconds = durationInput.text.toString().toIntOrNull() ?: 300
             if (question.isBlank()) {
                 Toast.makeText(this, "질문을 입력해 주세요.", Toast.LENGTH_SHORT).show()
@@ -305,7 +301,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             publishPoll(question, options, durationSeconds.coerceIn(30, 3_600))
         }
         val saveTemplateButton = outlineButton("템플릿으로 저장") {
-            val template = buildTemplateFromInputs(questionInput, optionsInput, durationInput) ?: return@outlineButton
+            val template = buildTemplateFromInputs(questionInput, optionEditor.values(), durationInput) ?: return@outlineButton
             store.saveTemplate(template)
             Toast.makeText(this, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
         }
@@ -341,15 +337,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun buildTemplateFromInputs(
         questionInput: EditText,
-        optionsInput: EditText,
+        options: List<String>,
         durationInput: EditText
     ): PollTemplate? {
         val question = questionInput.text.toString().trim()
-        val options = optionsInput.text.toString()
-            .lines()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
         if (question.isBlank()) {
             Toast.makeText(this, "질문을 입력해 주세요.", Toast.LENGTH_SHORT).show()
             return null
@@ -840,6 +831,133 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 gravity = Gravity.TOP
             }
             layoutParams = blockParams()
+        }
+    }
+
+    private inner class OptionTagEditor(initialOptions: List<String>) {
+        private val options = initialOptions.map { it.trim() }.filter { it.isNotBlank() }.distinct().toMutableList()
+        private val tags = LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        private val newOptionInput = inputBox("선택지 추가", "").apply {
+            layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                rightMargin = dp(8)
+            }
+        }
+        val view = LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = blockParams()
+            addView(HorizontalScrollView(context).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(tags)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dp(10)
+                }
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(newOptionInput)
+                addView(compactButton("추가", BUTTON_CHOICE) {
+                    val candidate = newOptionInput.text.toString().trim()
+                    if (addOption(candidate)) {
+                        newOptionInput.text.clear()
+                    }
+                }.apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(70), dp(48))
+                })
+            })
+        }
+
+        init {
+            render()
+        }
+
+        fun values(): List<String> = options.toList()
+
+        private fun addOption(candidate: String): Boolean {
+            if (candidate.isBlank()) {
+                Toast.makeText(this@MainActivity, "선택지를 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                return false
+            }
+            if (options.contains(candidate)) {
+                Toast.makeText(this@MainActivity, "이미 있는 선택지입니다.", Toast.LENGTH_SHORT).show()
+                return false
+            }
+            options += candidate
+            render()
+            return true
+        }
+
+        private fun editOption(index: Int) {
+            val input = EditText(this@MainActivity).apply {
+                setText(options[index])
+                selectAll()
+                textSize = 16f
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+            }
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("선택지 수정")
+                .setView(input)
+                .setPositiveButton("저장") { _, _ ->
+                    val updated = input.text.toString().trim()
+                    when {
+                        updated.isBlank() -> Toast.makeText(this@MainActivity, "선택지를 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                        options.any { it == updated } && options[index] != updated ->
+                            Toast.makeText(this@MainActivity, "이미 있는 선택지입니다.", Toast.LENGTH_SHORT).show()
+                        else -> {
+                            options[index] = updated
+                            render()
+                        }
+                    }
+                }
+                .setNegativeButton("취소", null)
+                .show()
+        }
+
+        private fun render() {
+            tags.removeAllViews()
+            options.forEachIndexed { index, option ->
+                tags.addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), dp(5), dp(7), dp(5))
+                    background = rounded(0xFFEAF4EF.toInt(), 20, 0xFFC6DED1.toInt())
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        dp(44)
+                    ).apply {
+                        rightMargin = dp(8)
+                    }
+                    addView(TextView(context).apply {
+                        text = option
+                        textSize = 15f
+                        setTextColor(0xFF123126.toInt())
+                        setTypeface(typeface, Typeface.BOLD)
+                        setOnClickListener { editOption(index) }
+                    })
+                    addView(TextView(context).apply {
+                        text = "수정"
+                        textSize = 12f
+                        setTextColor(0xFF176B4D.toInt())
+                        setPadding(dp(10), 0, dp(8), 0)
+                        setOnClickListener { editOption(index) }
+                    })
+                    addView(TextView(context).apply {
+                        text = "×"
+                        textSize = 20f
+                        gravity = Gravity.CENTER
+                        setTextColor(0xFF8B1E1E.toInt())
+                        setOnClickListener {
+                            options.removeAt(index)
+                            render()
+                        }
+                    })
+                })
+            }
         }
     }
 
