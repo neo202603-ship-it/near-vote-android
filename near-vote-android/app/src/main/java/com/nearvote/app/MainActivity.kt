@@ -443,11 +443,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(16), dp(12), dp(16))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                addView(TextView(context).apply {
-                    text = "$icon ${template.title}"
-                    textSize = 18f
-                    setTextColor(0xFF10251D.toInt())
-                    setTypeface(typeface, Typeface.BOLD)
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(TextView(context).apply {
+                        text = "$icon ${template.title}"
+                        textSize = 18f
+                        setTextColor(0xFF10251D.toInt())
+                        setTypeface(typeface, Typeface.BOLD)
+                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    })
+                    addView(tagPill("${template.durationSeconds}초"))
                 })
                 addView(templateTagBar(template).apply {
                     layoutParams = LinearLayout.LayoutParams(
@@ -1109,7 +1115,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun templateTagBar(template: PollTemplate): HorizontalScrollView {
-        return tagBar(listOf("${template.durationSeconds}초") + template.options)
+        return tagBar(template.options)
     }
 
     private fun tagBar(tags: List<String>): HorizontalScrollView {
@@ -1118,21 +1124,25 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 tags.forEach { tag ->
-                    addView(TextView(context).apply {
-                        text = tag
-                        textSize = 13f
-                        setTextColor(0xFF245341.toInt())
-                        setPadding(dp(12), dp(8), dp(12), dp(8))
-                        background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
-                        layoutParams = LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        ).apply {
-                            rightMargin = dp(8)
-                        }
-                    })
+                    addView(tagPill(tag))
                 }
             })
+        }
+    }
+
+    private fun tagPill(text: String): TextView {
+        return TextView(this).apply {
+            this.text = text
+            textSize = 13f
+            setTextColor(0xFF245341.toInt())
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                rightMargin = dp(8)
+            }
         }
     }
 
