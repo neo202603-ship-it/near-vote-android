@@ -821,7 +821,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         AlertDialog.Builder(this)
             .setTitle(if (autoConnectEnabled) "접속자 ${connectedCount}명" else "자동 연결 꺼짐")
             .setMessage(message)
-            .setPositiveButton("확인", null)
+            .setPositiveButton(if (autoConnectEnabled) "연결 끄기" else "연결 켜기") { _, _ ->
+                setAutoConnectEnabled(!autoConnectEnabled)
+            }
+            .setNegativeButton("닫기", null)
             .show()
     }
 
