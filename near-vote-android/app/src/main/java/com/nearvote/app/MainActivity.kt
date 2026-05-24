@@ -1431,6 +1431,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     return
                 }
                 if (result.proposerId == userId) return
+                if (declinedPollIds.contains(result.pollId)) {
+                    appendLog("거절한 투표의 결과는 무시함: ${result.question}")
+                    return
+                }
                 val alreadyKnown = !seenResultPollIds.add(result.pollId)
                 sharedResult = result
                 store.saveResult(result)
