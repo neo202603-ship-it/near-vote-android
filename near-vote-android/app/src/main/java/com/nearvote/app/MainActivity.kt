@@ -2,6 +2,9 @@ package com.nearvote.app
 
 import android.Manifest
 import android.app.AlertDialog
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -461,6 +464,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(breadcrumb("홈", "투표", "참여 요청"))
         page.addView(topBar("참여 요청"))
         page.addView(infoCard("새 투표 요청", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
+        page.addView(countdownCard(poll))
         page.addView(label("선택지 미리보기"))
         page.addView(statusCard("선택지", poll.options.joinToString(" / ")))
         page.addView(bodyText("참여하기를 누르면 선택지 화면으로 이동합니다. 거절하면 이 투표는 홈에서 숨겨집니다."))
@@ -486,6 +490,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topBar("게시한 투표"))
         page.addView(infoCard("설문", poll.question, poll.options.joinToString(" / ")))
         page.addView(statusCard(if (ended) "투표 종료" else "투표 진행 중", poll.statusText(connectedCount)))
+        page.addView(countdownCard(poll))
         if (!ended) {
             page.addView(primaryButton("참여 요청 다시 보내기") { sendPoll(poll) })
             page.addView(label("내 표도 참여할 수 있어요"))
@@ -519,6 +524,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(breadcrumb("홈", "투표", "투표 참여"))
         page.addView(topBar("투표 참여"))
         page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
+        page.addView(countdownCard(poll))
         val submitted = submittedVotes[poll.id]
         when {
             sharedResult?.pollId == poll.id -> {
@@ -974,6 +980,41 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 })
                 addView(FrameLayout(context).apply {
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, (100 - percent.coerceIn(0, 100)).toFloat())
+                })
+            })
+        }
+    }
+
+    private fun countdownCard(poll: NearbyPoll): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFD8E2DA.toInt())
+            layoutParams = blockParams()
+            addView(CountdownRingView(poll).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(92), dp(92)).apply {
+                    rightMargin = dp(16)
+                }
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = if (poll.hasEnded()) "투표 시간이 종료되었습니다" else "남은 시간"
+                    textSize = 18f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                })
+                addView(TextView(context).apply {
+                    text = if (poll.hasEnded()) {
+                        "결과 공유를 기다리거나 직접 결과를 공유할 수 있습니다."
+                    } else {
+                        "원형 표시가 줄어들수록 마감 시간이 가까워집니다."
+                    }
+                    textSize = 14f
+                    setTextColor(0xFF526158.toInt())
+                    setPadding(0, dp(6), 0, 0)
                 })
             })
         }
@@ -1595,6 +1636,65 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun hash(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private inner class CountdownRingView(private val poll: NearbyPoll) : View(this) {
+        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFE7ECE5.toInt()
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF176B4D.toInt()
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF647268.toInt()
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        private val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF10251D.toInt()
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val stroke = dp(8).toFloat()
+            trackPaint.strokeWidth = stroke
+            progressPaint.strokeWidth = stroke
+            titlePaint.textSize = dp(11).toFloat()
+            timePaint.textSize = dp(17).toFloat()
+
+            val size = width.coerceAtMost(height).toFloat()
+            val inset = stroke / 2f + dp(4)
+            val bounds = RectF(inset, inset, size - inset, size - inset)
+            val totalMillis = (poll.durationSeconds * 1_000L).coerceAtLeast(1L)
+            val remainingMillis = (poll.endAtMillis - System.currentTimeMillis()).coerceIn(0L, totalMillis)
+            val ratio = remainingMillis.toFloat() / totalMillis.toFloat()
+
+            canvas.drawArc(bounds, -90f, 360f, false, trackPaint)
+            canvas.drawArc(bounds, -90f, 360f * ratio, false, progressPaint)
+            canvas.drawText("남은", width / 2f, height / 2f - dp(8), titlePaint)
+            canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(15), timePaint)
+
+            if (remainingMillis > 0L) {
+                postInvalidateDelayed(1_000L)
+            }
+        }
+    }
+
+    private fun formatRemaining(remainingMillis: Long): String {
+        val totalSeconds = (remainingMillis / 1_000L).coerceAtLeast(0L)
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return if (minutes > 0) {
+            "%d:%02d".format(minutes, seconds)
+        } else {
+            "${seconds}초"
+        }
     }
 
     companion object {
