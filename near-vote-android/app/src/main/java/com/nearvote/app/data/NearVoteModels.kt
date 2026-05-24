@@ -176,6 +176,7 @@ data class NearbyPoll(
     val question: String,
     val options: List<String>,
     val durationMinutes: Int,
+    val durationSeconds: Int,
     val endAtMillis: Long
 ) {
     fun toPayloadJson(): String {
@@ -185,6 +186,7 @@ data class NearbyPoll(
             .put("question", question)
             .put("options", JSONArray(options))
             .put("durationMinutes", durationMinutes)
+            .put("durationSeconds", durationSeconds)
             .put("endAtMillis", endAtMillis)
             .toString()
     }
@@ -217,9 +219,16 @@ data class NearbyPoll(
                 question = payload.getString("question"),
                 options = options,
                 durationMinutes = payload.optInt("durationMinutes", 5),
+                durationSeconds = payload.optInt(
+                    "durationSeconds",
+                    payload.optInt("durationMinutes", 5) * 60
+                ),
                 endAtMillis = payload.optLong(
                     "endAtMillis",
-                    System.currentTimeMillis() + payload.optInt("durationMinutes", 5) * 60_000L
+                    System.currentTimeMillis() + payload.optInt(
+                        "durationSeconds",
+                        payload.optInt("durationMinutes", 5) * 60
+                    ) * 1_000L
                 )
             )
         }

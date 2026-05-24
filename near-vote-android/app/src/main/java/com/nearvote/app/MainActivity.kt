@@ -247,7 +247,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val selectedTemplate = template ?: store.loadTemplates().first()
         val questionInput = inputBox("질문", selectedTemplate.question)
         val optionsInput = inputBox("선택지", selectedTemplate.options.joinToString("\n"), multiLine = true)
-        val durationInput = inputBox("제한시간(분)", selectedTemplate.durationMinutes.toString(), numberOnly = true)
+        val durationInput = inputBox("제한시간(초)", (selectedTemplate.durationMinutes * 60).toString(), numberOnly = true)
 
         page.addView(label("템플릿"))
         page.addView(outlineButton("템플릿 선택") {
@@ -259,8 +259,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(label("선택지"))
         page.addView(optionsInput)
         page.addView(label("제한시간"))
-        page.addView(durationChoiceRow(durationInput))
-        page.addView(label("직접 입력"))
+        page.addView(durationChoiceGrid(durationInput))
+        page.addView(label("직접 입력(초)"))
         page.addView(durationInput)
 
         page.addView(primaryButton("주변에 게시하기") {
@@ -270,7 +270,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
-            val durationMinutes = durationInput.text.toString().toIntOrNull() ?: 5
+            val durationSeconds = durationInput.text.toString().toIntOrNull() ?: 300
             if (question.isBlank()) {
                 Toast.makeText(this, "질문을 입력해 주세요.", Toast.LENGTH_SHORT).show()
                 return@primaryButton
@@ -279,7 +279,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
                 return@primaryButton
             }
-            publishPoll(question, options, durationMinutes.coerceIn(1, 60))
+            publishPoll(question, options, durationSeconds.coerceIn(30, 3_600))
         })
         page.addView(outlineButton("템플릿으로 저장") {
             val template = buildTemplateFromInputs(questionInput, optionsInput, durationInput) ?: return@outlineButton
@@ -291,7 +291,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showTemplatePicker(
         currentQuestion: String = "점심메뉴는?",
         currentOptions: String = "한식\n분식\n샐러드",
-        currentDuration: String = "5"
+        currentDuration: String = "300"
     ) {
         setPage()
         page.addView(topMenu("투표"))
@@ -318,7 +318,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     title = currentQuestion.ifBlank { "새 설문" },
                     question = currentQuestion.ifBlank { "점심메뉴는?" },
                     options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("한식", "분식", "샐러드") },
-                    durationMinutes = currentDuration.toIntOrNull() ?: 5
+                    durationMinutes = ((currentDuration.toIntOrNull() ?: 300) + 59) / 60
                 )
             )
         })
@@ -348,7 +348,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             title = question,
             question = question,
             options = options,
-            durationMinutes = (durationInput.text.toString().toIntOrNull() ?: 5).coerceIn(1, 60)
+            durationMinutes = (((durationInput.text.toString().toIntOrNull() ?: 300) + 59) / 60).coerceIn(1, 60)
         )
     }
 
@@ -858,13 +858,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun durationChoiceRow(durationInput: EditText): LinearLayout {
-        return buttonRow(
-            compactButton("5분", BUTTON_CHOICE) { durationInput.setText("5") },
-            compactButton("10분", BUTTON_CHOICE) { durationInput.setText("10") },
-            compactButton("15분", BUTTON_CHOICE) { durationInput.setText("15") },
-            compactButton("30분", BUTTON_CHOICE) { durationInput.setText("30") }
-        )
+    private fun durationChoiceGrid(durationInput: EditText): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = blockParams()
+            addView(buttonRow(
+                compactButton("30초", BUTTON_CHOICE) { durationInput.setText("30") },
+                compactButton("1분", BUTTON_CHOICE) { durationInput.setText("60") },
+                compactButton("5분", BUTTON_CHOICE) { durationInput.setText("300") }
+            ).apply { layoutParams = compactBlockParams() })
+            addView(buttonRow(
+                compactButton("10분", BUTTON_CHOICE) { durationInput.setText("600") },
+                compactButton("15분", BUTTON_CHOICE) { durationInput.setText("900") },
+                compactButton("30분", BUTTON_CHOICE) { durationInput.setText("1800") }
+            ).apply { layoutParams = compactBlockParams() })
+        }
     }
 
     private fun sectionTitle(text: String): TextView {
@@ -1120,7 +1128,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return adjectives[seed % adjectives.size] + objects[(seed / adjectives.size) % objects.size]
     }
 
-    private fun publishPoll(question: String, options: List<String>, durationMinutes: Int) {
+    private fun publishPoll(question: String, options: List<String>, durationSeconds: Int) {
+        val durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1)
         val poll = NearbyPoll(
             id = "poll-${System.currentTimeMillis()}",
             proposerId = userId,
@@ -1128,7 +1137,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             question = question,
             options = options,
             durationMinutes = durationMinutes,
-            endAtMillis = System.currentTimeMillis() + durationMinutes * 60_000L
+            durationSeconds = durationSeconds,
+            endAtMillis = System.currentTimeMillis() + durationSeconds * 1_000L
         )
         activePoll = poll
         receivedVotes.clear()
@@ -1378,6 +1388,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             bottomMargin = dp(12)
+        }
+    }
+
+    private fun compactBlockParams(): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = dp(8)
         }
     }
 
