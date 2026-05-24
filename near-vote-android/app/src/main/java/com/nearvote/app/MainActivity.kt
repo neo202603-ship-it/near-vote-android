@@ -19,6 +19,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -585,7 +586,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(resultRow(option, count, count * 100 / total, participants))
         }
         if (result.participantSelections.isEmpty() && result.participantNames.isNotEmpty()) {
-            page.addView(participantSnackBar("참여자 ${result.participantCount}명", result.participantNames).apply {
+            page.addView(participantTagBar(result.participantNames).apply {
                 layoutParams = blockParams()
             })
         }
@@ -1033,7 +1034,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 })
             })
             if (participants.isNotEmpty()) {
-                addView(participantSnackBar("선택한 참여자 ${participants.size}명", participants).apply {
+                addView(participantTagBar(participants).apply {
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1045,13 +1046,27 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun participantSnackBar(title: String, participants: List<String>): TextView {
-        return TextView(this).apply {
-            text = "$title · ${participants.joinToString(", ")}"
-            textSize = 13f
-            setTextColor(0xFF245341.toInt())
-            setPadding(dp(14), dp(9), dp(14), dp(9))
-            background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
+    private fun participantTagBar(participants: List<String>): HorizontalScrollView {
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                participants.forEach { participant ->
+                    addView(TextView(context).apply {
+                        text = "#$participant"
+                        textSize = 13f
+                        setTextColor(0xFF245341.toInt())
+                        setPadding(dp(12), dp(8), dp(12), dp(8))
+                        background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            rightMargin = dp(8)
+                        }
+                    })
+                }
+            })
         }
     }
 
