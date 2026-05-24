@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
     private lateinit var logView: TextView
     private lateinit var connectionStatusView: TextView
+    private var topConnectionBadgeView: TextView? = null
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
     private lateinit var store: NearVoteStore
@@ -641,12 +642,49 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun topMenu(selected: String): LinearLayout {
-        return buttonRow(
+        val buttons = listOf(
             compactButton("홈", if (selected == "홈") BUTTON_PRIMARY else BUTTON_QUIET) { showHome() },
             compactButton("투표", if (selected == "투표") BUTTON_PRIMARY else BUTTON_QUIET) { showCompose() },
             compactButton("결과", if (selected == "결과") BUTTON_PRIMARY else BUTTON_QUIET) { showHistory() },
             compactButton("설정", if (selected == "설정") BUTTON_PRIMARY else BUTTON_QUIET) { showSettings() }
         )
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = blockParams()
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                    rightMargin = dp(8)
+                }
+                buttons.forEachIndexed { index, button ->
+                    button.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                        if (index < buttons.lastIndex) {
+                            rightMargin = dp(8)
+                        }
+                    }
+                    addView(button)
+                }
+            })
+            addView(topConnectionBadge())
+        }
+    }
+
+    private fun topConnectionBadge(): TextView {
+        return TextView(this).apply {
+            text = connectedCount.toString()
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (connectedCount == 0) 0xFF8B1E1E.toInt() else 0xFF174C8B.toInt())
+            background = rounded(
+                if (connectedCount == 0) 0xFFFFE8E8.toInt() else 0xFFE7F1FF.toInt(),
+                18,
+                if (connectedCount == 0) 0xFFF0B7B7.toInt() else 0xFFB7D0F5.toInt()
+            )
+            layoutParams = LinearLayout.LayoutParams(dp(42), dp(36))
+            topConnectionBadgeView = this
+        }
     }
 
     private fun breadcrumb(vararg items: String): TextView {
@@ -978,6 +1016,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 connectionStatusView.background = rounded(
                     if (connectedCount == 0) 0xFFFFE8E8.toInt() else 0xFFE7F1FF.toInt(),
                     24,
+                    if (connectedCount == 0) 0xFFF0B7B7.toInt() else 0xFFB7D0F5.toInt()
+                )
+            }
+            topConnectionBadgeView?.let { badge ->
+                badge.text = connectedCount.toString()
+                badge.setTextColor(if (connectedCount == 0) 0xFF8B1E1E.toInt() else 0xFF174C8B.toInt())
+                badge.background = rounded(
+                    if (connectedCount == 0) 0xFFFFE8E8.toInt() else 0xFFE7F1FF.toInt(),
+                    18,
                     if (connectedCount == 0) 0xFFF0B7B7.toInt() else 0xFFB7D0F5.toInt()
                 )
             }
