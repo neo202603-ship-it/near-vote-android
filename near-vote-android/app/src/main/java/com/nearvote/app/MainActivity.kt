@@ -16,7 +16,6 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -28,6 +27,8 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.nearvote.app.data.NearVoteStore
 import com.nearvote.app.data.NearbyPoll
 import com.nearvote.app.data.PollTemplate
@@ -823,9 +824,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             menuItem("설정", "⚙", selected == "설정") { showSettings() }
         )
         return LinearLayout(this).apply {
+            val sidePadding = dp(12)
+            val topPadding = dp(8)
+            val baseBottomPadding = dp(12)
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(12) + systemNavigationBottomInset())
+            setPadding(sidePadding, topPadding, sidePadding, baseBottomPadding + systemNavigationBottomInset())
             background = rounded(0xFFFFFFFF.toInt(), 0, 0xFFD8E2DA.toInt(), 1)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -846,6 +850,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 }
             })
             addView(topConnectionBadge())
+            ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+                val navigationBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                view.setPadding(sidePadding, topPadding, sidePadding, baseBottomPadding + navigationBottom)
+                insets
+            }
+            post { ViewCompat.requestApplyInsets(this) }
         }
     }
 
@@ -1871,17 +1881,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun systemNavigationBottomInset(): Int {
-        return if (Build.VERSION.SDK_INT >= 30) {
-            window.decorView.rootWindowInsets
-                ?.getInsets(WindowInsets.Type.navigationBars())
-                ?.bottom
-                ?: dp(16)
-        } else {
-            resources.getIdentifier("navigation_bar_height", "dimen", "android")
-                .takeIf { it > 0 }
-                ?.let { resources.getDimensionPixelSize(it) }
-                ?: dp(16)
-        }
+        return resources.getIdentifier("navigation_bar_height", "dimen", "android")
+            .takeIf { it > 0 }
+            ?.let { resources.getDimensionPixelSize(it) }
+            ?: dp(16)
     }
 
     private fun hash(value: String): String {
