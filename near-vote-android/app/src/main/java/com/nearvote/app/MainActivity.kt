@@ -190,7 +190,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         sharedResult?.let { result ->
             hasSession = true
-            page.addView(actionCard("${resultOwnershipIcon(result)} 최근 결과: ${result.question}", "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
+            page.addView(resultActionCard("최근 결과: ${result.question}", "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}", result) {
                 showSharedResult(result)
             })
         }
@@ -215,7 +215,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(primaryButton("투표 만들기") { showCompose() })
         } else {
             results.forEach { result ->
-                page.addView(actionCard("${resultOwnershipIcon(result)} ${result.question}", "${resultOwnershipLabel(result)} · ${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명") {
+                page.addView(resultActionCard(result.question, "${resultOwnershipLabel(result)} · ${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명", result) {
                     showSharedResult(result)
                 })
             }
@@ -1169,6 +1169,43 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun resultActionCard(title: String, subtitle: String, result: SharedResult, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(16), dp(10))
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFE0E7DD.toInt())
+            setOnClickListener { onClick() }
+            layoutParams = blockParams()
+            addView(AvatarTileView(resolvedAvatarId(result.proposerId, result.proposerAvatarId)).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(54), dp(54)).apply {
+                    rightMargin = dp(12)
+                }
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = title
+                    textSize = 17f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    textSize = 13f
+                    setTextColor(0xFF526158.toInt())
+                    setPadding(0, dp(5), 0, 0)
+                })
+            })
+            addView(TextView(context).apply {
+                text = "›"
+                textSize = 28f
+                setTextColor(0xFF8AA093.toInt())
+            })
+        }
+    }
+
     private fun pollActionCard(title: String, subtitle: String, poll: NearbyPoll, onClick: () -> Unit): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1894,10 +1931,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun resultOwnershipLabel(result: SharedResult): String {
         return if (isMyResult(result)) "내가 만든 투표" else "공유받은 투표"
-    }
-
-    private fun resultOwnershipIcon(result: SharedResult): String {
-        return if (isMyResult(result)) "📝" else "📥"
     }
 
     private fun friendlyTime(timestampMillis: Long): String {
