@@ -282,7 +282,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(label("직접 입력(초)"))
         page.addView(durationInput)
 
-        page.addView(primaryButton("주변에 게시하기") {
+        val publishButton = primaryButton("게시하기") {
             val question = questionInput.text.toString().trim()
             val options = optionsInput.text.toString()
                 .lines()
@@ -299,12 +299,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 return@primaryButton
             }
             publishPoll(question, options, durationSeconds.coerceIn(30, 3_600))
-        })
-        page.addView(outlineButton("템플릿으로 저장") {
+        }
+        val saveTemplateButton = outlineButton("템플릿으로 저장") {
             val template = buildTemplateFromInputs(questionInput, optionsInput, durationInput) ?: return@outlineButton
             store.saveTemplate(template)
             Toast.makeText(this, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
-        })
+        }
+        page.addView(buttonRow(saveTemplateButton, publishButton))
     }
 
     private fun showTemplatePicker(
