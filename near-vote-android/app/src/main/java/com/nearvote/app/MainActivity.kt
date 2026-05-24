@@ -264,7 +264,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val selectedTemplate = template ?: store.loadTemplates().first()
         val questionInput = inputBox("질문", selectedTemplate.question)
         val optionsInput = inputBox("선택지", selectedTemplate.options.joinToString("\n"), multiLine = true)
-        val durationInput = inputBox("제한시간(초)", (selectedTemplate.durationMinutes * 60).toString(), numberOnly = true)
+        val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
 
         page.addView(label("템플릿"))
         page.addView(outlineButton("템플릿 선택") {
@@ -325,7 +325,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     title = currentQuestion.ifBlank { "새 투표" },
                     question = currentQuestion.ifBlank { "점심메뉴는?" },
                     options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("한식", "분식", "샐러드") },
-                    durationMinutes = ((currentDuration.toIntOrNull() ?: 300) + 59) / 60
+                    durationMinutes = ((currentDuration.toIntOrNull() ?: 300) + 59) / 60,
+                    durationSeconds = currentDuration.toIntOrNull() ?: 300
                 )
             )
         })
@@ -350,12 +351,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
             return null
         }
+        val durationSeconds = (durationInput.text.toString().toIntOrNull() ?: 300).coerceIn(30, 3_600)
         return PollTemplate(
             id = "template-${System.currentTimeMillis()}",
             title = question,
             question = question,
             options = options,
-            durationMinutes = (((durationInput.text.toString().toIntOrNull() ?: 300) + 59) / 60).coerceIn(1, 60)
+            durationMinutes = ((durationSeconds + 59) / 60).coerceIn(1, 60),
+            durationSeconds = durationSeconds
         )
     }
 
@@ -371,7 +374,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = blockParams()
         }
-        val card = actionCard("$source > ${template.title}", template.options.joinToString(" / ")) {
+        val card = actionCard(
+            "$source > ${template.title}",
+            "제한시간 ${template.durationSeconds}초 · ${template.options.joinToString(" / ")}"
+        ) {
             showCompose(template)
         }.apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
