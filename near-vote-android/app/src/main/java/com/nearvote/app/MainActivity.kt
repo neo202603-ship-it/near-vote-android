@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topMenu("홈"))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
         page.addView(sectionTitle("현재 상태"))
-        connectionStatusView = statusCard(if (autoConnectEnabled) "자동 연결 중" else "자동 연결 꺼짐", connectionStatusText())
+        connectionStatusView = connectionBadge()
         page.addView(connectionStatusView)
         addCurrentSessionCards()
         page.addView(sectionTitle("주요 작업"))
@@ -710,6 +710,22 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun connectionBadge(): TextView {
+        return TextView(this).apply {
+            text = connectionBadgeText()
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (connectedCount == 0) 0xFF8B1E1E.toInt() else 0xFF174C8B.toInt())
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            background = rounded(
+                if (connectedCount == 0) 0xFFFFE8E8.toInt() else 0xFFE7F1FF.toInt(),
+                24,
+                if (connectedCount == 0) 0xFFF0B7B7.toInt() else 0xFFB7D0F5.toInt()
+            )
+            layoutParams = blockParams()
+        }
+    }
+
     private fun emptyCard(title: String, subtitle: String): TextView {
         return TextView(this).apply {
             text = "$title\n$subtitle"
@@ -935,9 +951,23 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun updateConnectionStatus() {
         runOnUiThread {
             if (::connectionStatusView.isInitialized) {
-                connectionStatusView.text = "${if (autoConnectEnabled) "자동 연결 중" else "자동 연결 꺼짐"}\n${connectionStatusText()}"
+                connectionStatusView.text = connectionBadgeText()
+                connectionStatusView.setTextColor(if (connectedCount == 0) 0xFF8B1E1E.toInt() else 0xFF174C8B.toInt())
+                connectionStatusView.background = rounded(
+                    if (connectedCount == 0) 0xFFFFE8E8.toInt() else 0xFFE7F1FF.toInt(),
+                    24,
+                    if (connectedCount == 0) 0xFFF0B7B7.toInt() else 0xFFB7D0F5.toInt()
+                )
             }
         }
+    }
+
+    private fun connectionBadgeText(): String {
+        if (connectedCount == 0) {
+            return "접속자 없음\n${connectionStatusText()}"
+        }
+        val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
+        return "접속자 있음 · 참여가능\n연결된 기기 ${connectedCount}대${peerNames?.let { " · $it" }.orEmpty()}"
     }
 
     private fun connectionStatusText(): String {
