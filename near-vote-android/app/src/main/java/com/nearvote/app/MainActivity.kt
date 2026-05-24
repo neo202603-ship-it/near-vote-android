@@ -51,6 +51,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var logView: TextView
     private lateinit var connectionStatusView: TextView
     private var topConnectionBadgeView: TextView? = null
+    private var compactTitleBarView: LinearLayout? = null
+    private var compactTitleTextView: TextView? = null
+    private var expandedTitleView: View? = null
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
     private lateinit var store: NearVoteStore
@@ -701,20 +704,33 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xFFF4F6F1.toInt())
         }
+        compactTitleBarView = null
+        compactTitleTextView = null
+        expandedTitleView = null
         val scroll = ScrollView(this).apply {
             setBackgroundColor(0xFFF4F6F1.toInt())
-            layoutParams = LinearLayout.LayoutParams(
+            layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
+                ViewGroup.LayoutParams.MATCH_PARENT
             )
+            setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                updateCompactTitleBar(scrollY)
+            }
         }
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(20), dp(18), dp(28))
         }
         scroll.addView(page)
-        root.addView(scroll)
+        root.addView(FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+            addView(scroll)
+            addView(compactTitleBar())
+        })
         root.addView(bottomMenu(selectedMenu))
         setContentView(root)
     }
@@ -814,7 +830,40 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 textSize = 24f
                 setTypeface(typeface, Typeface.BOLD)
             })
+            compactTitleTextView?.text = title
+            expandedTitleView = this
         }
+    }
+
+    private fun compactTitleBar(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            background = rounded(0xFFFFFFFF.toInt(), 0, 0xFFD8E2DA.toInt(), 1)
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP
+            )
+            addView(TextView(context).apply {
+                textSize = 18f
+                setTextColor(0xFF10251D.toInt())
+                setTypeface(typeface, Typeface.BOLD)
+                compactTitleTextView = this
+            })
+            compactTitleBarView = this
+        }
+    }
+
+    private fun updateCompactTitleBar(scrollY: Int) {
+        val titleView = expandedTitleView ?: run {
+            compactTitleBarView?.visibility = View.GONE
+            return
+        }
+        val shouldShow = titleView.bottom > 0 && scrollY >= titleView.bottom
+        compactTitleBarView?.visibility = if (shouldShow) View.VISIBLE else View.GONE
     }
 
     private fun bottomMenu(selected: String): LinearLayout {
