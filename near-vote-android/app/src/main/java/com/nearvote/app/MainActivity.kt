@@ -144,12 +144,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(actionCard("참여할 투표 찾기", "근처에서 진행 중인 투표를 찾습니다.") {
             showDiscover()
         })
-        page.addView(sectionTitle("기록과 도구"))
-        page.addView(buttonRow(
-            compactButton("지난 결과", BUTTON_OUTLINE) { showHistory() },
-            compactButton("미리보기", BUTTON_QUIET) { showSimulationResult() }
-        ))
-        page.addView(quietButton("고급 진단") { showDiagnostics() })
     }
 
     private fun addCurrentSessionCards() {
@@ -245,6 +239,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             showSettings()
         })
         page.addView(outlineButton("내 아이디 관리") { showMyPage() })
+        page.addView(quietButton("고급 진단") { showDiagnostics() })
     }
 
     private fun showCompose(template: PollTemplate? = null) {
