@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -824,7 +825,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(12))
+            setPadding(dp(12), dp(8), dp(12), dp(12) + systemNavigationBottomInset())
             background = rounded(0xFFFFFFFF.toInt(), 0, 0xFFD8E2DA.toInt(), 1)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1867,6 +1868,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private fun systemNavigationBottomInset(): Int {
+        return if (Build.VERSION.SDK_INT >= 30) {
+            window.decorView.rootWindowInsets
+                ?.getInsets(WindowInsets.Type.navigationBars())
+                ?.bottom
+                ?: dp(16)
+        } else {
+            resources.getIdentifier("navigation_bar_height", "dimen", "android")
+                .takeIf { it > 0 }
+                ?.let { resources.getDimensionPixelSize(it) }
+                ?: dp(16)
+        }
     }
 
     private fun hash(value: String): String {
