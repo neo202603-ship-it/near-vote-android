@@ -143,10 +143,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
         addCurrentSessionCards()
-        page.addView(sectionTitle("주요 작업"))
-        page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
-            showCompose()
-        })
     }
 
     private fun addCurrentSessionCards() {
@@ -717,11 +713,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 0, 0, dp(18))
-            addView(TextView(context).apply {
-                text = title
-                textSize = 31f
-                setTextColor(0xFF10251D.toInt())
-                setTypeface(typeface, Typeface.BOLD)
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(context).apply {
+                    text = title
+                    textSize = 31f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(compactButton("설문 생성", BUTTON_PRIMARY) { showCompose() }.apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(104), dp(42)).apply {
+                        leftMargin = dp(10)
+                    }
+                })
             })
             addView(TextView(context).apply {
                 text = subtitle
@@ -1329,7 +1335,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun visibleActivePolls(): List<NearbyPoll> {
-        return activePolls.values.sortedBy { it.endAtMillis }
+        return activePolls.values
+            .filter { poll -> !poll.hasEnded() }
+            .sortedBy { it.endAtMillis }
     }
 
     private fun votesFor(pollId: String): LinkedHashMap<String, String> {
