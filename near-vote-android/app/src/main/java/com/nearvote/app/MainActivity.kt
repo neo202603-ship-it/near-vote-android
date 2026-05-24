@@ -191,7 +191,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sharedResult?.let { result ->
             hasSession = true
             page.addView(sectionTitle("최근 투표"))
-            page.addView(resultActionCard(result.question, "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}", result) {
+            page.addView(resultActionCard(result.question, resultMetadata(result, "참여자 ${result.participantCount}명", "검증 ${if (result.isHashValid()) "완료" else "필요"}"), result) {
                 showSharedResult(result)
             })
         }
@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(primaryButton("투표 만들기") { showCompose() })
         } else {
             results.forEach { result ->
-                page.addView(resultActionCard(result.question, "${resultOwnershipLabel(result)} · ${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명", result) {
+                page.addView(resultActionCard(result.question, resultMetadata(result, friendlyTime(result.createdAtMillis), "참여자 ${result.participantCount}명"), result) {
                     showSharedResult(result)
                 })
             }
@@ -638,7 +638,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showSharedResult(result) }
         page.addView(breadcrumb("홈", "결과", if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
         page.addView(topBar(if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
-        page.addView(avatarInfoCard("투표", result.question, "${resultOwnershipLabel(result)} · 제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}", resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
+        page.addView(avatarInfoCard("투표", result.question, resultMetadata(result, "제안자: ${result.proposerName}", friendlyTime(result.createdAtMillis)), resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
         result.options.forEach { option ->
@@ -1817,31 +1817,37 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 connectionStatusView.background = rounded(connectionBadgeBackgroundColor(), 24, connectionBadgeStrokeColor(), 2)
             }
             topConnectionBadgeView?.let { badge ->
-                badge.text = topConnectionBadgeText()
+                val nextText = topConnectionBadgeText()
                 badge.setTextColor(connectionBadgeTextColor())
                 badge.background = rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
-                if (animateBadge) {
-                    animateConnectionBadge(badge)
+                if (animateBadge && badge.text.toString() != nextText) {
+                    animateConnectionBadge(badge, nextText)
+                } else {
+                    badge.animate().cancel()
+                    badge.translationY = 0f
+                    badge.alpha = 1f
+                    badge.text = nextText
                 }
             }
         }
     }
 
-    private fun animateConnectionBadge(badge: TextView) {
+    private fun animateConnectionBadge(badge: TextView, nextText: String) {
         badge.animate().cancel()
-        badge.scaleX = 0.88f
-        badge.scaleY = 0.88f
-        badge.alpha = 0.72f
+        badge.translationY = 0f
+        badge.alpha = 1f
         badge.animate()
-            .scaleX(1.08f)
-            .scaleY(1.08f)
-            .alpha(1f)
-            .setDuration(140L)
+            .translationY(-dp(12).toFloat())
+            .alpha(0f)
+            .setDuration(130L)
             .withEndAction {
+                badge.text = nextText
+                badge.translationY = dp(12).toFloat()
+                badge.alpha = 0f
                 badge.animate()
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(120L)
+                    .translationY(0f)
+                    .alpha(1f)
+                    .setDuration(150L)
                     .start()
             }
             .start()
@@ -1930,8 +1936,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return result.proposerId == userId
     }
 
-    private fun resultOwnershipLabel(result: SharedResult): String {
-        return if (isMyResult(result)) "내가 만든 투표" else "공유받은 투표"
+    private fun resultMetadata(result: SharedResult, vararg details: String): String {
+        val prefix = if (isMyResult(result)) emptyList() else listOf("공유받은 투표")
+        return (prefix + details).joinToString(" · ")
     }
 
     private fun friendlyTime(timestampMillis: Long): String {
