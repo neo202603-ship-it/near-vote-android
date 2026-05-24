@@ -257,6 +257,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         })
         page.addView(outlineButton("내 아이디 관리") { showMyPage() })
         page.addView(quietButton("고급 진단") { showDiagnostics() })
+        page.addView(versionFooter())
     }
 
     private fun showCompose(template: PollTemplate? = null) {
@@ -802,6 +803,18 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             textSize = 15f
             setTextColor(0xFF526158.toInt())
             setPadding(0, dp(4), 0, dp(12))
+        }
+    }
+
+    private fun versionFooter(): TextView {
+        val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "-"
+        return TextView(this).apply {
+            text = "현재 버전 v$versionName"
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTextColor(0xFF647268.toInt())
+            setPadding(0, dp(24), 0, dp(8))
+            layoutParams = blockParams()
         }
     }
 
