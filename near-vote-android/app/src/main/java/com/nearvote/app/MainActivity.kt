@@ -190,7 +190,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         sharedResult?.let { result ->
             hasSession = true
-            page.addView(resultActionCard("최근 결과: ${result.question}", "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}", result) {
+            page.addView(sectionTitle("최근 투표"))
+            page.addView(resultActionCard(result.question, "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}", result) {
                 showSharedResult(result)
             })
         }
