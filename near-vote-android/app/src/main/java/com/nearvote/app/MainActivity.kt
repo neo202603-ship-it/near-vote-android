@@ -535,11 +535,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showPublishedPoll(poll) }
         page.addView(breadcrumb("홈", "투표", "게시한 투표"))
         page.addView(topBar("게시한 투표"))
-        page.addView(infoCard("투표", poll.question, poll.options.joinToString(" / ")))
+        page.addView(infoCard("게시한 투표", poll.question, poll.options.joinToString(" / ")))
         page.addView(statusCard(if (ended) "투표 종료" else "투표 진행 중", poll.statusText(connectedCount)))
         page.addView(countdownCard(poll))
         if (!ended) {
-            page.addView(label("내 표도 참여할 수 있어요"))
+            page.addView(mySelectionPrompt())
             if (receivedVotes.containsKey(userId)) {
                 page.addView(statusCard("이미 참여 완료", receivedVotes[userId].orEmpty()))
             } else {
@@ -1428,6 +1428,28 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 setOnClickListener { onClick() }
             }
             layoutParams = blockParams()
+        }
+    }
+
+    private fun mySelectionPrompt(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            background = rounded(0xFFE9F4FF.toInt(), 14, 0xFF91BBE5.toInt(), 2)
+            layoutParams = blockParams()
+            addView(TextView(context).apply {
+                text = "나의 참여"
+                textSize = 13f
+                setTextColor(0xFF356A9E.toInt())
+                setTypeface(typeface, Typeface.BOLD)
+            })
+            addView(TextView(context).apply {
+                text = "나의 선택은?"
+                textSize = 19f
+                setTextColor(0xFF153F68.toInt())
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(0, dp(4), 0, 0)
+            })
         }
     }
 
