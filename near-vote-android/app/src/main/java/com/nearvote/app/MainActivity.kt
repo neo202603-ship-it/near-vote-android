@@ -143,11 +143,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             compactButton("지난 결과", BUTTON_OUTLINE) { showHistory() },
             compactButton("미리보기", BUTTON_QUIET) { showSimulationResult() }
         ))
-        page.addView(quietButton("개발자 진단") { showDiagnostics() })
+        page.addView(quietButton("고급 진단") { showDiagnostics() })
     }
 
     private fun addCurrentSessionCards() {
+        var hasSession = false
         activePoll?.let { poll ->
+            hasSession = true
             val subtitle = if (poll.hasEnded()) {
                 "투표 종료 · 참여자 ${receivedVotes.size}명"
             } else {
@@ -156,14 +158,24 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(actionCard("게시 중: ${poll.question}", subtitle) { showPublishedPoll(poll) })
         }
         incomingPoll?.let { poll ->
+            hasSession = true
             val submitted = submittedVotes[poll.id]
             val subtitle = submitted?.let { "내 선택: $it" } ?: "${poll.proposerName} 제안 · ${poll.remainingText()}"
             page.addView(actionCard("받은 투표: ${poll.question}", subtitle) { showVotePoll(poll) })
         }
         sharedResult?.let { result ->
+            hasSession = true
             page.addView(actionCard("최근 결과: ${result.question}", "참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
                 showSharedResult(result)
             })
+        }
+        if (!hasSession) {
+            val hint = if (connectedCount == 0) {
+                "가까운 기기와 연결되면 받은 투표가 여기에 표시됩니다."
+            } else {
+                "새 설문을 만들거나 근처에서 게시된 투표를 기다릴 수 있습니다."
+            }
+            page.addView(emptyCard("진행 중인 투표 없음", hint))
         }
     }
 
@@ -174,6 +186,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topMenu("결과"))
         if (results.isEmpty()) {
             page.addView(emptyCard("저장된 결과 없음", "결과를 공유받거나 직접 공유하면 여기에 남습니다."))
+            page.addView(primaryButton("설문 만들기") { showCompose() })
         } else {
             results.forEach { result ->
                 page.addView(actionCard(result.question, "${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명 · ${result.resultHash.take(12)}") {
@@ -349,13 +362,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topMenu("투표"))
         val poll = incomingPoll
         if (poll == null) {
-            page.addView(emptyCard("아직 찾은 투표 없음", "자동 연결이 켜져 있으면 근처에서 게시된 투표가 이 화면에 표시됩니다."))
+            page.addView(statusCard(if (autoConnectEnabled) "자동 연결 대기 중" else "자동 연결 꺼짐", connectionStatusText()))
+            page.addView(emptyCard("아직 받은 투표 없음", "근처 사용자가 설문을 게시하면 자동으로 투표 참여 화면이 열립니다."))
         } else {
             page.addView(infoCard("받은 설문", poll.question, poll.options.joinToString(" / ")))
             page.addView(primaryButton("투표 참여하기") { showVotePoll(poll) })
         }
-        page.addView(primaryButton("연결 상태 확인") { showDiagnostics() })
-        page.addView(outlineButton("테스트 투표 참여해보기") { showSimulationResult() })
+        page.addView(buttonRow(
+            compactButton("새 설문 만들기", BUTTON_PRIMARY) { showCompose() },
+            compactButton("연결 확인", BUTTON_OUTLINE) { showDiagnostics() }
+        ))
+        page.addView(quietButton("테스트 투표 미리보기") { showSimulationResult() })
         page.addView(outlineButton("홈으로") { showHome() })
     }
 
