@@ -34,11 +34,13 @@ data class SharedResult(
     val pollId: String,
     val proposerId: String,
     val proposerName: String,
+    val proposerAvatarId: Int = -1,
     val question: String,
     val options: List<String>,
     val counts: Map<String, Int>,
     val participantIds: List<String>,
     val participantNames: List<String>,
+    val participantAvatarIds: Map<String, Int> = emptyMap(),
     val participantSelections: Map<String, String>,
     val participantCount: Int,
     val createdAtMillis: Long,
@@ -50,11 +52,13 @@ data class SharedResult(
         return JSONObject()
             .put("pollId", pollId)
             .put("proposerName", proposerName)
+            .put("proposerAvatarId", proposerAvatarId)
             .put("question", question)
             .put("options", JSONArray(options))
             .put("counts", countJson)
             .put("participantIds", JSONArray(participantIds))
             .put("participantNames", JSONArray(participantNames))
+            .put("participantAvatarIds", JSONObject(participantAvatarIds))
             .put("participantSelections", JSONObject(participantSelections))
             .put("participantCount", participantCount)
             .put("createdAtMillis", createdAtMillis)
@@ -69,11 +73,13 @@ data class SharedResult(
             .put("pollId", pollId)
             .put("proposerId", proposerId)
             .put("proposerName", proposerName)
+            .put("proposerAvatarId", proposerAvatarId)
             .put("question", question)
             .put("options", JSONArray(options))
             .put("counts", countJson)
             .put("participantIds", JSONArray(participantIds))
             .put("participantNames", JSONArray(participantNames))
+            .put("participantAvatarIds", JSONObject(participantAvatarIds))
             .put("participantSelections", JSONObject(participantSelections))
             .put("participantCount", participantCount)
             .put("createdAtMillis", createdAtMillis)
@@ -148,15 +154,23 @@ data class SharedResult(
             } else {
                 participantIds.associateWith { id -> selectionsJson.optString(id) }.filterValues { it.isNotBlank() }
             }
+            val avatarsJson = payload.optJSONObject("participantAvatarIds")
+            val participantAvatarIds = if (avatarsJson == null) {
+                emptyMap()
+            } else {
+                participantIds.associateWith { id -> avatarsJson.optInt(id, 0) }
+            }
             return SharedResult(
                 pollId = payload.getString("pollId"),
                 proposerId = proposerId,
                 proposerName = payload.optString("proposerName", proposerId),
+                proposerAvatarId = payload.optInt("proposerAvatarId", -1),
                 question = payload.getString("question"),
                 options = options,
                 counts = options.associateWith { countsJson.optInt(it, 0) },
                 participantIds = participantIds,
                 participantNames = participantNames,
+                participantAvatarIds = participantAvatarIds,
                 participantSelections = participantSelections,
                 participantCount = payload.getInt("participantCount"),
                 createdAtMillis = payload.optLong(
@@ -173,6 +187,7 @@ data class NearbyPoll(
     val id: String,
     val proposerId: String,
     val proposerName: String,
+    val proposerAvatarId: Int = -1,
     val question: String,
     val options: List<String>,
     val durationMinutes: Int,
@@ -183,6 +198,7 @@ data class NearbyPoll(
         return JSONObject()
             .put("pollId", id)
             .put("proposerName", proposerName)
+            .put("proposerAvatarId", proposerAvatarId)
             .put("question", question)
             .put("options", JSONArray(options))
             .put("durationMinutes", durationMinutes)
@@ -216,6 +232,7 @@ data class NearbyPoll(
                 id = payload.getString("pollId"),
                 proposerId = proposerId,
                 proposerName = payload.optString("proposerName", proposerId),
+                proposerAvatarId = payload.optInt("proposerAvatarId", -1),
                 question = payload.getString("question"),
                 options = options,
                 durationMinutes = payload.optInt("durationMinutes", 5),

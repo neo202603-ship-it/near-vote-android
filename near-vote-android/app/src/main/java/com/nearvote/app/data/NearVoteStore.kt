@@ -19,6 +19,17 @@ class NearVoteStore(context: Context) {
         prefs.edit().putString(KEY_IDENTITY, identity).apply()
     }
 
+    fun loadAvatarId(fallback: () -> Int): Int {
+        if (prefs.contains(KEY_AVATAR_ID)) return prefs.getInt(KEY_AVATAR_ID, 0)
+        val suggested = fallback()
+        saveAvatarId(suggested)
+        return suggested
+    }
+
+    fun saveAvatarId(avatarId: Int) {
+        prefs.edit().putInt(KEY_AVATAR_ID, avatarId).apply()
+    }
+
     fun loadUserId(fallback: () -> String): String {
         val saved = prefs.getString(KEY_USER_ID, null)
         if (!saved.isNullOrBlank()) return saved
@@ -103,6 +114,7 @@ class NearVoteStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "near_vote_prefs"
         private const val KEY_IDENTITY = "identity"
+        private const val KEY_AVATAR_ID = "avatar_id"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_AUTO_CONNECT = "auto_connect"
         private const val KEY_RECEIPTS = "receipts"

@@ -2,8 +2,11 @@ package com.nearvote.app
 
 import android.Manifest
 import android.app.AlertDialog
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -57,6 +60,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var nearby: NearbyVoteConnectionManager
     private lateinit var simulator: LocalVoteSimulator
     private lateinit var store: NearVoteStore
+    private val avatarSheet: Bitmap by lazy { BitmapFactory.decodeResource(resources, R.drawable.avatar_sheet) }
     private val handler = Handler(Looper.getMainLooper())
     private val nearbyHeartbeat = object : Runnable {
         override fun run() {
@@ -66,6 +70,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
     private var selfName = ""
+    private var selfAvatarId = 0
     private var userId = ""
     private var autoConnectEnabled = true
     private var connectedCount = 0
@@ -76,6 +81,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private val sharedResultsByPoll = linkedMapOf<String, SharedResult>()
     private val receivedVotesByPoll = linkedMapOf<String, LinkedHashMap<String, String>>()
     private val receivedVoteNamesByPoll = linkedMapOf<String, LinkedHashMap<String, String>>()
+    private val receivedVoteAvatarsByPoll = linkedMapOf<String, LinkedHashMap<String, Int>>()
     private val submittedVotes = linkedMapOf<String, String>()
     private val acceptedPollIds = linkedSetOf<String>()
     private val declinedPollIds = linkedSetOf<String>()
@@ -98,6 +104,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         store = NearVoteStore(this)
         selfName = store.loadIdentity { suggestIdentity() }
         userId = store.loadUserId { UUID.randomUUID().toString() }
+        selfAvatarId = store.loadAvatarId { avatarIdForUser(userId) }
         autoConnectEnabled = store.isAutoConnectEnabled()
         nearby = NearbyVoteConnectionManager(this, selfName, this)
         simulator = LocalVoteSimulator(selfName)
@@ -148,7 +155,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showHome() }
         page.addView(breadcrumb("홈"))
         page.addView(header("근거리 투표", "주변 사람들과 투표를 하고 공유 합니다."))
-        page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
+        page.addView(identityCard())
         addCurrentSessionCards()
     }
 
@@ -222,6 +229,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topBar("내 아이디"))
         page.addView(bodyText("아이디는 결과와 참여자 목록에 표시됩니다. 따로 만들지 않아도 제안 아이디를 바로 사용할 수 있습니다."))
         val identityInput = inputBox("내 아이디", selfName)
+        var selectedAvatarId = selfAvatarId
+        page.addView(label("아바타"))
+        page.addView(avatarPicker(selfAvatarId) { selectedAvatarId = it })
         page.addView(label("현재 아이디"))
         page.addView(identityInput)
         page.addView(outlineButton("새 아이디 제안") {
@@ -233,7 +243,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 Toast.makeText(this, "아이디는 2글자 이상 입력해 주세요.", Toast.LENGTH_SHORT).show()
                 return@primaryButton
             }
-            saveIdentity(nextIdentity)
+            saveIdentity(nextIdentity, selectedAvatarId)
             Toast.makeText(this, "아이디 저장 완료", Toast.LENGTH_SHORT).show()
             showHome()
         })
@@ -516,7 +526,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showPollInvitation(poll) }
         page.addView(breadcrumb("홈", "투표", "참여 요청"))
         page.addView(topBar("참여 요청"))
-        page.addView(infoCard("새 투표 요청", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
+        page.addView(avatarInfoCard("새 투표 요청", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}", resolvedAvatarId(poll.proposerId, poll.proposerAvatarId)))
         page.addView(countdownCard(poll))
         page.addView(label("선택지 미리보기"))
         page.addView(statusCard("선택지", poll.options.joinToString(" / ")))
@@ -539,11 +549,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val ended = poll.hasEnded()
         val receivedVotes = votesFor(poll.id)
         val receivedVoteNames = voteNamesFor(poll.id)
+        val receivedVoteAvatars = voteAvatarsFor(poll.id)
         setPage("투표")
         rememberScreen { showPublishedPoll(poll) }
         page.addView(breadcrumb("홈", "투표", "게시한 투표"))
         page.addView(topBar("게시한 투표"))
-        page.addView(infoCard("게시한 투표", poll.question, poll.options.joinToString(" / ")))
+        page.addView(avatarInfoCard("게시한 투표", poll.question, poll.options.joinToString(" / "), selfAvatarId))
         page.addView(statusCard(if (ended) "투표 종료" else "투표 진행 중", poll.statusText(connectedCount)))
         page.addView(countdownCard(poll))
         if (!ended) {
@@ -565,7 +576,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val percent = count * 100 / receivedVotes.size
                 page.addView(resultRow(option, count, percent))
             }
-            page.addView(statusCard("참여자 ${receivedVotes.size}명", receivedVoteNames.values.joinToString(", ")))
+            page.addView(label("참여자 ${receivedVotes.size}명"))
+            page.addView(participantTagBar(receivedVoteNames.map { (id, name) ->
+                name to (receivedVoteAvatars[id] ?: avatarIdForUser(id))
+            }).apply { layoutParams = blockParams() })
         }
         if (!sharedResultPollIds.contains(poll.id)) {
             page.addView(primaryButton("투표 종료") { endPollAndShareResult(poll) })
@@ -577,7 +591,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showVotePoll(poll) }
         page.addView(breadcrumb("홈", "투표", "투표 참여"))
         page.addView(topBar("투표 참여"))
-        page.addView(infoCard("투표", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
+        page.addView(avatarInfoCard("투표", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}", resolvedAvatarId(poll.proposerId, poll.proposerAvatarId)))
         page.addView(countdownCard(poll))
         val submitted = submittedVotes[poll.id]
         when {
@@ -623,7 +637,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         rememberScreen { showSharedResult(result) }
         page.addView(breadcrumb("홈", "결과", if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
         page.addView(topBar(if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
-        page.addView(infoCard("투표", result.question, "${resultOwnershipLabel(result)} · 제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}"))
+        page.addView(avatarInfoCard("투표", result.question, "${resultOwnershipLabel(result)} · 제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}", resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
         result.options.forEach { option ->
@@ -631,7 +645,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             val participants = if (result.participantSelections.isNotEmpty()) {
                 result.participantIds.mapIndexedNotNull { index, participantId ->
                     val selected = result.participantSelections[participantId] == option
-                    if (selected) result.participantNames.getOrNull(index) ?: participantId.take(8) else null
+                    if (selected) {
+                        val name = result.participantNames.getOrNull(index) ?: participantId.take(8)
+                        name to (result.participantAvatarIds[participantId] ?: avatarIdForUser(participantId))
+                    } else {
+                        null
+                    }
                 }
             } else {
                 emptyList()
@@ -639,7 +658,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(resultRow(option, count, count * 100 / total, participants))
         }
         if (result.participantSelections.isEmpty() && result.participantNames.isNotEmpty()) {
-            page.addView(participantTagBar(result.participantNames).apply {
+            page.addView(participantTagBar(result.participantNames.mapIndexed { index, name ->
+                val id = result.participantIds.getOrNull(index).orEmpty()
+                name to (result.participantAvatarIds[id] ?: avatarIdForUser(id))
+            }).apply {
                 layoutParams = blockParams()
             })
         }
@@ -1091,7 +1113,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             peers.joinToString(separator = "\n") { name -> "• $name" }
         }
         AlertDialog.Builder(this)
-            .setTitle(if (autoConnectEnabled) "접속자 ${connectedCount}명" else "자동 연결 꺼짐")
+            .setTitle(if (autoConnectEnabled) "접속자 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}명" else "자동 연결 꺼짐")
             .setMessage(message)
             .setPositiveButton(if (autoConnectEnabled) "연결 끄기" else "연결 켜기") { _, _ ->
                 setAutoConnectEnabled(!autoConnectEnabled)
@@ -1214,6 +1236,77 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun identityCard(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(18), dp(12))
+            background = rounded(0xFFFFFFFF.toInt(), 14)
+            layoutParams = blockParams()
+            addView(AvatarTileView(selfAvatarId).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(60), dp(60)).apply {
+                    rightMargin = dp(14)
+                }
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(TextView(context).apply {
+                    text = "내 아이디"
+                    textSize = 13f
+                    setTextColor(0xFF647268.toInt())
+                })
+                addView(TextView(context).apply {
+                    text = selfName
+                    textSize = 20f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                    setPadding(0, dp(3), 0, dp(3))
+                })
+                addView(TextView(context).apply {
+                    text = "결과와 참여자 목록에 표시됩니다."
+                    textSize = 13f
+                    setTextColor(0xFF526158.toInt())
+                })
+            })
+        }
+    }
+
+    private fun avatarInfoCard(title: String, value: String, caption: String, avatarId: Int): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(18), dp(12))
+            background = rounded(0xFFFFFFFF.toInt(), 14)
+            layoutParams = blockParams()
+            addView(AvatarTileView(avatarId).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(58), dp(58)).apply {
+                    rightMargin = dp(14)
+                }
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = title
+                    textSize = 13f
+                    setTextColor(0xFF647268.toInt())
+                })
+                addView(TextView(context).apply {
+                    text = value
+                    textSize = 20f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                    setPadding(0, dp(3), 0, dp(3))
+                })
+                addView(TextView(context).apply {
+                    text = caption
+                    textSize = 13f
+                    setTextColor(0xFF526158.toInt())
+                })
+            })
+        }
+    }
+
     private fun statusCard(title: String, subtitle: String): TextView {
         return TextView(this).apply {
             text = "$title\n$subtitle"
@@ -1252,7 +1345,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         option: String,
         count: Int,
         percent: Int,
-        participants: List<String> = emptyList()
+        participants: List<Pair<String, Int>> = emptyList()
     ): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1303,24 +1396,33 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun participantTagBar(participants: List<String>): HorizontalScrollView {
+    private fun participantTagBar(participants: List<Pair<String, Int>>): HorizontalScrollView {
         return HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                participants.forEach { participant ->
-                    addView(TextView(context).apply {
-                        text = "#$participant"
-                        textSize = 13f
-                        setTextColor(0xFF245341.toInt())
-                        setPadding(dp(12), dp(8), dp(12), dp(8))
-                        background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
+                participants.forEach { (participant, avatarId) ->
+                    addView(LinearLayout(context).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(dp(5), dp(4), dp(12), dp(4))
+                        background = rounded(0xFFEAF4EF.toInt(), 20, 0xFFC6DED1.toInt())
                         layoutParams = LinearLayout.LayoutParams(
                             ViewGroup.LayoutParams.WRAP_CONTENT,
                             ViewGroup.LayoutParams.WRAP_CONTENT
                         ).apply {
                             rightMargin = dp(8)
                         }
+                        addView(AvatarTileView(avatarId).apply {
+                            layoutParams = LinearLayout.LayoutParams(dp(28), dp(28)).apply {
+                                rightMargin = dp(5)
+                            }
+                        })
+                        addView(TextView(context).apply {
+                            text = "#$participant"
+                            textSize = 13f
+                            setTextColor(0xFF245341.toInt())
+                        })
                     })
                 }
             })
@@ -1355,6 +1457,40 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
                 rightMargin = dp(8)
+            }
+        }
+    }
+
+    private fun avatarPicker(initialAvatarId: Int, onSelected: (Int) -> Unit): LinearLayout {
+        val choices = mutableListOf<AvatarTileView>()
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = rounded(0xFFFFFFFF.toInt(), 14, 0xFFE0E7DD.toInt())
+            layoutParams = blockParams()
+            repeat(AVATAR_ROW_COUNT) { row ->
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    repeat(AVATAR_COLUMN_COUNT) { column ->
+                        val avatarId = row * AVATAR_COLUMN_COUNT + column
+                        val tile = AvatarTileView(avatarId, avatarId == initialAvatarId).apply {
+                            setOnClickListener {
+                                choices.forEach { choice -> choice.setChosen(false) }
+                                setChosen(true)
+                                onSelected(avatarId)
+                            }
+                        }
+                        choices += tile
+                        addView(tile, LinearLayout.LayoutParams(0, dp(64), 1f).apply {
+                            if (column < AVATAR_COLUMN_COUNT - 1) {
+                                rightMargin = dp(5)
+                            }
+                            if (row < AVATAR_ROW_COUNT - 1) {
+                                bottomMargin = dp(5)
+                            }
+                        })
+                    }
+                })
             }
         }
     }
@@ -1709,7 +1845,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             return "접속자 없음\n${connectionStatusText()}"
         }
         val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
-        return "접속자 있음 · 참여가능\n연결된 기기 ${connectedCount}대${peerNames?.let { " · $it" }.orEmpty()}"
+        return "접속자 있음 · 참여가능\n연결된 기기 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}대${peerNames?.let { " · $it" }.orEmpty()}"
     }
 
     private fun connectionStatusText(): String {
@@ -1720,7 +1856,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             "연결된 기기 0대 · 약 ${NEARBY_HEARTBEAT_MS / 1000}초마다 주변 연결 상태를 확인합니다."
         } else {
             val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
-            "연결된 기기 ${connectedCount}대${peerNames?.let { " · $it" }.orEmpty()} · 투표 게시와 참여가 가능합니다."
+            "연결된 기기 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}대${peerNames?.let { " · $it" }.orEmpty()} · 투표 게시와 참여가 가능합니다."
         }
     }
 
@@ -1746,6 +1882,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun voteNamesFor(pollId: String): LinkedHashMap<String, String> {
         return receivedVoteNamesByPoll.getOrPut(pollId) { linkedMapOf() }
+    }
+
+    private fun voteAvatarsFor(pollId: String): LinkedHashMap<String, Int> {
+        return receivedVoteAvatarsByPoll.getOrPut(pollId) { linkedMapOf() }
     }
 
     private fun isMyResult(result: SharedResult): Boolean {
@@ -1780,9 +1920,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator.runDemo().forEach { appendLog(it) }
     }
 
-    private fun saveIdentity(nextIdentity: String) {
+    private fun saveIdentity(nextIdentity: String, avatarId: Int) {
         store.saveIdentity(nextIdentity)
+        store.saveAvatarId(avatarId)
         selfName = nextIdentity
+        selfAvatarId = avatarId
         resetSessionForIdentity()
     }
 
@@ -1799,6 +1941,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sharedResultsByPoll.clear()
         receivedVotesByPoll.clear()
         receivedVoteNamesByPoll.clear()
+        receivedVoteAvatarsByPoll.clear()
         submittedVotes.clear()
         acceptedPollIds.clear()
         declinedPollIds.clear()
@@ -1815,12 +1958,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return adjectives[seed % adjectives.size] + objects[(seed / adjectives.size) % objects.size]
     }
 
+    private fun avatarIdForUser(id: String): Int {
+        return Math.floorMod(id.hashCode(), AVATAR_COUNT)
+    }
+
+    private fun resolvedAvatarId(id: String, avatarId: Int): Int {
+        return if (avatarId in 0 until AVATAR_COUNT) avatarId else avatarIdForUser(id)
+    }
+
     private fun publishPoll(question: String, options: List<String>, durationSeconds: Int) {
         val durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1)
         val poll = NearbyPoll(
             id = "poll-${System.currentTimeMillis()}",
             proposerId = userId,
             proposerName = selfName,
+            proposerAvatarId = selfAvatarId,
             question = question,
             options = options,
             durationMinutes = durationMinutes,
@@ -1830,6 +1982,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         activePolls[poll.id] = poll
         receivedVotesByPoll[poll.id] = linkedMapOf()
         receivedVoteNamesByPoll[poll.id] = linkedMapOf()
+        receivedVoteAvatarsByPoll[poll.id] = linkedMapOf()
         sharedResult = null
         sharedResultPollIds -= poll.id
         seenResultPollIds -= poll.id
@@ -1867,6 +2020,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val isPublishedByMe = activePolls.containsKey(poll.id)
         val receivedVotes = votesFor(poll.id)
         val receivedVoteNames = voteNamesFor(poll.id)
+        val receivedVoteAvatars = voteAvatarsFor(poll.id)
         if (submittedVotes.containsKey(poll.id) && !isPublishedByMe) {
             Toast.makeText(this, "이미 참여한 투표입니다.", Toast.LENGTH_SHORT).show()
             return
@@ -1888,12 +2042,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     .put("option", option)
                     .put("voterId", userId)
                     .put("voterName", selfName)
+                    .put("voterAvatarId", selfAvatarId)
                     .toString()
             ).toJson()
         )
         if (isPublishedByMe) {
             receivedVotes[userId] = option
             receivedVoteNames[userId] = selfName
+            receivedVoteAvatars[userId] = selfAvatarId
             saveLocalReceipt(poll, option)
             showPublishedPoll(poll)
         } else {
@@ -1931,8 +2087,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val poll = activePolls[payload.optString("pollId")] ?: return
                 val receivedVotes = votesFor(poll.id)
                 val receivedVoteNames = voteNamesFor(poll.id)
+                val receivedVoteAvatars = voteAvatarsFor(poll.id)
                 val voterId = payload.optString("voterId", message.senderId)
                 val voterName = payload.optString("voterName", voterId.take(8))
+                val voterAvatarId = payload.optInt("voterAvatarId", avatarIdForUser(voterId))
                 val option = payload.optString("option")
                 if (option.isBlank()) return
                 if (poll.hasEnded()) {
@@ -1946,6 +2104,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 }
                 receivedVotes[voterId] = option
                 receivedVoteNames[voterId] = voterName
+                receivedVoteAvatars[voterId] = voterAvatarId
                 sendReceipt(endpointId, poll, voterId, voterName, option)
                 runOnUiThread { showPublishedPoll(poll) }
             }
@@ -2025,21 +2184,27 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         val receivedVotes = votesFor(poll.id)
         val receivedVoteNames = voteNamesFor(poll.id)
+        val receivedVoteAvatars = voteAvatarsFor(poll.id)
         val counts = poll.options.associateWith { option ->
             receivedVotes.values.count { it == option }
         }
         val participantIds = receivedVotes.keys.toList()
         val participantNames = participantIds.map { id -> receivedVoteNames[id] ?: id.take(8) }
+        val participantAvatarIds = participantIds.associateWith { id ->
+            receivedVoteAvatars[id] ?: avatarIdForUser(id)
+        }
         val participantSelections = participantIds.associateWith { id -> receivedVotes.getValue(id) }
         val result = SharedResult(
             pollId = poll.id,
             proposerId = userId,
             proposerName = selfName,
+            proposerAvatarId = selfAvatarId,
             question = poll.question,
             options = poll.options,
             counts = counts,
             participantIds = participantIds,
             participantNames = participantNames,
+            participantAvatarIds = participantAvatarIds,
             participantSelections = participantSelections,
             participantCount = receivedVotes.size,
             createdAtMillis = System.currentTimeMillis(),
@@ -2208,6 +2373,45 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private inner class AvatarTileView(
+        private val avatarId: Int,
+        chosen: Boolean = false
+    ) : View(this) {
+        private var isChosen = chosen
+        private val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF176B4D.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = dp(3).toFloat()
+        }
+
+        fun setChosen(chosen: Boolean) {
+            isChosen = chosen
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val normalizedId = avatarId.coerceIn(0, AVATAR_COUNT - 1)
+            val sourceWidth = avatarSheet.width / AVATAR_COLUMN_COUNT
+            val sourceHeight = avatarSheet.height / AVATAR_ROW_COUNT
+            val sourceColumn = normalizedId % AVATAR_COLUMN_COUNT
+            val sourceRow = normalizedId / AVATAR_COLUMN_COUNT
+            val source = Rect(
+                sourceColumn * sourceWidth,
+                sourceRow * sourceHeight,
+                (sourceColumn + 1) * sourceWidth,
+                (sourceRow + 1) * sourceHeight
+            )
+            val inset = dp(if (isChosen) 4 else 6).toFloat()
+            val target = RectF(inset, inset, width - inset, height - inset)
+            canvas.drawBitmap(avatarSheet, source, target, tilePaint)
+            if (isChosen) {
+                canvas.drawRoundRect(target, dp(12).toFloat(), dp(12).toFloat(), selectionPaint)
+            }
+        }
+    }
+
     private inner class BarcodeView(private val value: String) : View(this) {
         private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF10251D.toInt()
@@ -2264,6 +2468,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         private const val NEARBY_HEARTBEAT_MS = 30_000L
         private const val CONNECTION_SYNC_DELAY_MS = 500L
         private const val URGENT_COUNTDOWN_MS = 10_000L
+        private const val AVATAR_COLUMN_COUNT = 5
+        private const val AVATAR_ROW_COUNT = 4
+        private const val AVATAR_COUNT = AVATAR_COLUMN_COUNT * AVATAR_ROW_COUNT
         private const val BUTTON_PRIMARY = 1
         private const val BUTTON_OUTLINE = 2
         private const val BUTTON_QUIET = 3

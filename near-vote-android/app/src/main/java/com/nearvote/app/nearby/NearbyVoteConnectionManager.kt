@@ -43,6 +43,16 @@ class NearbyVoteConnectionManager(
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
             endpointNames[endpointId] = connectionInfo.endpointName
             listener.onLog("${connectionInfo.endpointName} 연결 요청 수신")
+            val isKnownPeer = connectedEndpoints.contains(endpointId) || pendingEndpoints.contains(endpointId)
+            val isDuplicatePeerName = activeEndpoints().any { existingId ->
+                endpointNames[existingId] == connectionInfo.endpointName
+            }
+            if (!isKnownPeer && !isDuplicatePeerName && connectionSlotsUsed() >= MAX_CONNECTIONS) {
+                client.rejectConnection(endpointId)
+                listener.onLog("연결 제한 ${MAX_CONNECTIONS}대 도달: ${connectionInfo.endpointName} 요청 거절")
+                return
+            }
+            pendingEndpoints += endpointId
             client.acceptConnection(endpointId, payloadCallback)
                 .addOnFailureListener { listener.onLog("연결 수락 실패: ${it.message}") }
         }
@@ -51,6 +61,11 @@ class NearbyVoteConnectionManager(
             pendingEndpoints -= endpointId
             if (result.status.isSuccess) {
                 removeDuplicateConnections(endpointId)
+                if (!connectedEndpoints.contains(endpointId) && activeEndpoints().size >= MAX_CONNECTIONS) {
+                    client.disconnectFromEndpoint(endpointId)
+                    listener.onLog("연결 제한 ${MAX_CONNECTIONS}대 도달: ${endpointNames[endpointId] ?: endpointId} 연결 종료")
+                    return
+                }
                 connectedEndpoints += endpointId
                 listener.onEndpointConnected(endpointId)
                 listener.onLog("연결 완료: ${endpointNames[endpointId] ?: endpointId}")
@@ -74,6 +89,10 @@ class NearbyVoteConnectionManager(
             listener.onEndpointFound(endpointId, info.endpointName)
             listener.onLog("주변 기기 발견: ${info.endpointName}")
             if (connectedEndpoints.contains(endpointId) || pendingEndpoints.contains(endpointId)) {
+                return
+            }
+            if (connectionSlotsUsed() >= MAX_CONNECTIONS) {
+                listener.onLog("연결 제한 ${MAX_CONNECTIONS}대 도달: 새 연결을 기다리지 않음")
                 return
             }
             pendingEndpoints += endpointId
@@ -186,6 +205,10 @@ class NearbyVoteConnectionManager(
         return connectedEndpoints.distinctBy { endpointId -> endpointNames[endpointId] ?: endpointId }
     }
 
+    private fun connectionSlotsUsed(): Int {
+        return activeEndpoints().size + pendingEndpoints.size
+    }
+
     private fun removeDuplicateConnections(newEndpointId: String) {
         val newName = endpointNames[newEndpointId] ?: newEndpointId
         val duplicates = connectedEndpoints.filter { endpointId ->
@@ -200,5 +223,9 @@ class NearbyVoteConnectionManager(
 
     private fun notifyConnectionCount() {
         listener.onConnectionCountChanged(activeEndpoints().size)
+    }
+
+    companion object {
+        const val MAX_CONNECTIONS = 20
     }
 }
