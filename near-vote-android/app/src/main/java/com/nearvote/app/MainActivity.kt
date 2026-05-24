@@ -234,8 +234,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             showSettings()
         })
         page.addView(outlineButton("내 아이디 관리") { showMyPage() })
-        page.addView(statusCard("내부 사용자 ID", "보이지 않는 고유 ID가 투표 중복 방지와 영수증 검증에 사용됩니다."))
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showCompose(template: PollTemplate? = null) {
