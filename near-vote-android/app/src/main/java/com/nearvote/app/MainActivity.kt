@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             } else {
                 "${poll.remainingText()} · 참여자 ${receivedVotes.size}명 · 연결 ${connectedCount}대"
             }
-            page.addView(actionCard("게시 중: ${poll.question}", subtitle) { showPublishedPoll(poll) })
+            page.addView(pollActionCard("게시 중: ${poll.question}", subtitle, poll) { showPublishedPoll(poll) })
         }
         visibleIncomingPolls().forEach { poll ->
             hasSession = true
@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 accepted -> "${poll.proposerName} 제안 · ${poll.remainingText()}"
                 else -> "${poll.proposerName}님의 참여 요청 · 수락 후 투표 가능"
             }
-            page.addView(actionCard("받은 투표: ${poll.question}", subtitle) {
+            page.addView(pollActionCard("받은 투표: ${poll.question}", subtitle, poll) {
                 if (accepted || submitted != null) {
                     showVotePoll(poll)
                 } else {
@@ -877,6 +877,48 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     setTextColor(0xFF526158.toInt())
                     setPadding(0, dp(5), 0, 0)
                 })
+            })
+            addView(TextView(context).apply {
+                text = "›"
+                textSize = 28f
+                setTextColor(0xFF8AA093.toInt())
+            })
+        }
+    }
+
+    private fun pollActionCard(title: String, subtitle: String, poll: NearbyPoll, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, dp(16), 0)
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFE0E7DD.toInt())
+            setOnClickListener { onClick() }
+            layoutParams = blockParams()
+            addView(View(context).apply {
+                background = rounded(0xFF176B4D.toInt(), 16)
+                layoutParams = LinearLayout.LayoutParams(dp(6), ViewGroup.LayoutParams.MATCH_PARENT)
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(16), dp(10), dp(16))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = title
+                    textSize = 18f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    textSize = 14f
+                    setTextColor(0xFF526158.toInt())
+                    setPadding(0, dp(5), 0, 0)
+                })
+            })
+            addView(CountdownRingView(poll, compact = true).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(58), dp(58)).apply {
+                    rightMargin = dp(10)
+                }
             })
             addView(TextView(context).apply {
                 text = "›"
@@ -1638,7 +1680,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private inner class CountdownRingView(private val poll: NearbyPoll) : View(this) {
+    private inner class CountdownRingView(
+        private val poll: NearbyPoll,
+        private val compact: Boolean = false
+    ) : View(this) {
         private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFE7ECE5.toInt()
             style = Paint.Style.STROKE
@@ -1662,11 +1707,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            val stroke = dp(8).toFloat()
+            val stroke = dp(if (compact) 5 else 8).toFloat()
             trackPaint.strokeWidth = stroke
             progressPaint.strokeWidth = stroke
-            titlePaint.textSize = dp(11).toFloat()
-            timePaint.textSize = dp(17).toFloat()
+            titlePaint.textSize = dp(if (compact) 8 else 11).toFloat()
+            timePaint.textSize = dp(if (compact) 11 else 17).toFloat()
 
             val size = width.coerceAtMost(height).toFloat()
             val inset = stroke / 2f + dp(4)
@@ -1677,8 +1722,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
             canvas.drawArc(bounds, -90f, 360f, false, trackPaint)
             canvas.drawArc(bounds, -90f, 360f * ratio, false, progressPaint)
-            canvas.drawText("남은", width / 2f, height / 2f - dp(8), titlePaint)
-            canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(15), timePaint)
+            if (compact) {
+                canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(4), timePaint)
+            } else {
+                canvas.drawText("남은", width / 2f, height / 2f - dp(8), titlePaint)
+                canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(15), timePaint)
+            }
 
             if (remainingMillis > 0L) {
                 postInvalidateDelayed(1_000L)
