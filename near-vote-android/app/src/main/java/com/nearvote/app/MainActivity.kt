@@ -1363,7 +1363,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun visibleIncomingPolls(): List<NearbyPoll> {
         return incomingPolls.values
-            .filter { poll -> !poll.hasEnded() && !declinedPollIds.contains(poll.id) }
+            .filter { poll ->
+                !poll.hasEnded() &&
+                    !declinedPollIds.contains(poll.id) &&
+                    !sharedResultsByPoll.containsKey(poll.id)
+            }
             .sortedBy { it.endAtMillis }
     }
 
@@ -1597,6 +1601,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val alreadyKnown = !seenResultPollIds.add(result.pollId)
                 sharedResult = result
                 sharedResultsByPoll[result.pollId] = result
+                incomingPolls.remove(result.pollId)
                 store.saveResult(result)
                 if (alreadyKnown) {
                     appendLog("이미 받은 결과 블록 갱신: ${result.question}")
