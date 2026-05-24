@@ -700,6 +700,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun setPage(selectedMenu: String) {
+        val pageSidePadding = dp(18)
+        val pageBaseTopPadding = dp(20)
+        val pageBottomPadding = dp(28)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xFFF4F6F1.toInt())
@@ -719,7 +722,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(20), dp(18), dp(28))
+            setPadding(pageSidePadding, pageBaseTopPadding + systemStatusTopInset(), pageSidePadding, pageBottomPadding)
         }
         scroll.addView(page)
         root.addView(FrameLayout(this).apply {
@@ -730,6 +733,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             )
             addView(scroll)
             addView(compactTitleBar())
+            ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
+                val statusTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                page.setPadding(pageSidePadding, pageBaseTopPadding + statusTop, pageSidePadding, pageBottomPadding)
+                compactTitleBarView?.setPadding(dp(18), dp(12) + statusTop, dp(18), dp(12))
+                insets
+            }
+            post { ViewCompat.requestApplyInsets(this) }
         })
         root.addView(bottomMenu(selectedMenu))
         setContentView(root)
@@ -840,7 +850,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setPadding(dp(18), dp(12) + systemStatusTopInset(), dp(18), dp(12))
             background = rounded(0xFFFFFFFF.toInt(), 0, 0xFFD8E2DA.toInt(), 1)
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1935,6 +1945,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             .takeIf { it > 0 }
             ?.let { resources.getDimensionPixelSize(it) }
             ?: dp(16)
+    }
+
+    private fun systemStatusTopInset(): Int {
+        return resources.getIdentifier("status_bar_height", "dimen", "android")
+            .takeIf { it > 0 }
+            ?.let { resources.getDimensionPixelSize(it) }
+            ?: dp(24)
     }
 
     private fun hash(value: String): String {
