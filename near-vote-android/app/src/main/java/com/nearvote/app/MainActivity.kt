@@ -590,14 +590,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 layoutParams = blockParams()
             })
         }
-        page.addView(label("검증 정보"))
-        page.addView(statusCard(
-            if (result.isHashValid()) "검증 완료" else "검증 필요",
-            "결과 해시 ${result.resultHash.take(16)}"
+        page.addView(verificationBarcodePanel(
+            result = result,
+            receipt = latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId)
         ))
-        (latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId))?.let {
-            page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
-        }
     }
 
     private fun showSimulationResult() {
@@ -1067,6 +1063,35 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     })
                 }
             })
+        }
+    }
+
+    private fun verificationBarcodePanel(result: SharedResult, receipt: VoteReceipt?): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = rounded(
+                if (result.isHashValid()) 0xFFF4FBF7.toInt() else 0xFFFFF3F3.toInt(),
+                16,
+                if (result.isHashValid()) 0xFFB7DCC9.toInt() else 0xFFE0B2B2.toInt()
+            )
+            layoutParams = blockParams()
+            addView(BarcodeView("result:${result.resultHash}:${result.isHashValid()}").apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(58)
+                )
+            })
+            receipt?.let {
+                addView(BarcodeView("receipt:${it.voteHash}").apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(58)
+                    ).apply {
+                        topMargin = dp(12)
+                    }
+                })
+            }
         }
     }
 
@@ -1808,6 +1833,47 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
             if (remainingMillis > 0L) {
                 postInvalidateDelayed(1_000L)
+            }
+        }
+    }
+
+    private inner class BarcodeView(private val value: String) : View(this) {
+        private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF10251D.toInt()
+            style = Paint.Style.FILL
+        }
+        private val guardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF176B4D.toInt()
+            style = Paint.Style.FILL
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val quietZone = dp(8).toFloat()
+            val top = dp(6).toFloat()
+            val bottom = height - dp(6).toFloat()
+            val availableWidth = (width - quietZone * 2).coerceAtLeast(1f)
+            val encoded = hash(value)
+            val units = encoded.length * 2 + 6
+            val unitWidth = availableWidth / units
+            var x = quietZone
+
+            repeat(2) {
+                canvas.drawRect(x, top, x + unitWidth, bottom, guardPaint)
+                x += unitWidth * 1.5f
+            }
+
+            encoded.forEachIndexed { index, char ->
+                val nibble = char.digitToIntOrNull(16) ?: 0
+                val barUnits = 0.7f + (nibble % 4) * 0.35f
+                val barTop = top + if (index % 5 == 0) 0f else dp(5).toFloat()
+                canvas.drawRect(x, barTop, x + unitWidth * barUnits, bottom, barPaint)
+                x += unitWidth * 2
+            }
+
+            repeat(2) {
+                canvas.drawRect(x, top, x + unitWidth, bottom, guardPaint)
+                x += unitWidth * 1.5f
             }
         }
     }
