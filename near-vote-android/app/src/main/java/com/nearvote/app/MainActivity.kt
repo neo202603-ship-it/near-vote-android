@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         sharedResult?.let { result ->
             hasSession = true
-            page.addView(actionCard("최근 결과: ${result.question}", "참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
+            page.addView(actionCard("최근 결과: ${result.question}", "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
                 showSharedResult(result)
             })
         }
@@ -185,7 +185,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(primaryButton("설문 만들기") { showCompose() })
         } else {
             results.forEach { result ->
-                page.addView(actionCard(result.question, "${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명 · ${result.resultHash.take(12)}") {
+                page.addView(actionCard(result.question, "${resultOwnershipLabel(result)} · ${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명") {
                     showSharedResult(result)
                 })
             }
@@ -456,9 +456,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun showSharedResult(result: SharedResult) {
         setPage()
-        page.addView(topBar("공유받은 결과"))
+        page.addView(topBar(if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
         page.addView(topMenu("결과"))
-        page.addView(infoCard("설문", result.question, "제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}"))
+        page.addView(infoCard("설문", result.question, "${resultOwnershipLabel(result)} · 제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}"))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
         result.options.forEach { option ->
@@ -980,6 +980,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
             "연결된 기기 ${connectedCount}대${peerNames?.let { " · $it" }.orEmpty()} · 설문 게시와 투표 참여가 가능합니다."
         }
+    }
+
+    private fun isMyResult(result: SharedResult): Boolean {
+        return result.proposerId == userId
+    }
+
+    private fun resultOwnershipLabel(result: SharedResult): String {
+        return if (isMyResult(result)) "내가 만든 투표" else "공유받은 투표"
     }
 
     private fun friendlyTime(timestampMillis: Long): String {
