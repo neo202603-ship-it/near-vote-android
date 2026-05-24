@@ -284,6 +284,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val questionInput = inputBox("질문", selectedTemplate.question)
         val optionEditor = OptionTagEditor(selectedTemplate.options)
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
+        val customDurationPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = if (isPresetDuration(selectedTemplate.durationSeconds)) View.GONE else View.VISIBLE
+            addView(label("직접 입력(초)"))
+            addView(durationInput)
+        }
 
         page.addView(label("템플릿"))
         page.addView(outlineButton("템플릿 선택") {
@@ -295,9 +301,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(label("선택지"))
         page.addView(optionEditor.view)
         page.addView(label("제한시간"))
-        page.addView(durationChoiceGrid(durationInput))
-        page.addView(label("직접 입력(초)"))
-        page.addView(durationInput)
+        page.addView(durationChoiceGrid(
+            durationInput = durationInput,
+            onPresetSelected = { customDurationPanel.visibility = View.GONE },
+            onCustomSelected = {
+                customDurationPanel.visibility = View.VISIBLE
+                durationInput.requestFocus()
+            }
+        ))
+        page.addView(customDurationPanel)
 
         val publishButton = primaryButton("게시하기") {
             val question = questionInput.text.toString().trim()
@@ -1644,15 +1656,24 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun durationChoiceGrid(durationInput: EditText): LinearLayout {
+    private fun durationChoiceGrid(
+        durationInput: EditText,
+        onPresetSelected: () -> Unit,
+        onCustomSelected: () -> Unit
+    ): LinearLayout {
         return compactButtonRow(
-            compactButton("30초", BUTTON_CHOICE) { durationInput.setText("30") },
-            compactButton("1분", BUTTON_CHOICE) { durationInput.setText("60") },
-            compactButton("5분", BUTTON_CHOICE) { durationInput.setText("300") },
-            compactButton("10분", BUTTON_CHOICE) { durationInput.setText("600") },
-            compactButton("15분", BUTTON_CHOICE) { durationInput.setText("900") },
-            compactButton("30분", BUTTON_CHOICE) { durationInput.setText("1800") }
+            compactButton("30초", BUTTON_CHOICE) { durationInput.setText("30"); onPresetSelected() },
+            compactButton("1분", BUTTON_CHOICE) { durationInput.setText("60"); onPresetSelected() },
+            compactButton("5분", BUTTON_CHOICE) { durationInput.setText("300"); onPresetSelected() },
+            compactButton("10분", BUTTON_CHOICE) { durationInput.setText("600"); onPresetSelected() },
+            compactButton("15분", BUTTON_CHOICE) { durationInput.setText("900"); onPresetSelected() },
+            compactButton("30분", BUTTON_CHOICE) { durationInput.setText("1800"); onPresetSelected() },
+            compactButton("+", BUTTON_OUTLINE) { onCustomSelected() }
         )
+    }
+
+    private fun isPresetDuration(durationSeconds: Int): Boolean {
+        return durationSeconds in listOf(30, 60, 300, 600, 900, 1800)
     }
 
     private fun sectionTitle(text: String): TextView {
