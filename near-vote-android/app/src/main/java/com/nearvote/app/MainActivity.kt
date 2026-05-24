@@ -698,15 +698,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xFFF4F6F1.toInt())
         }
-        val menuArea = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(24), dp(18), 0)
-            addView(topMenu(selectedMenu))
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        }
         val scroll = ScrollView(this).apply {
             setBackgroundColor(0xFFF4F6F1.toInt())
             layoutParams = LinearLayout.LayoutParams(
@@ -717,11 +708,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), 0, dp(18), dp(28))
+            setPadding(dp(18), dp(20), dp(18), dp(28))
         }
         scroll.addView(page)
-        root.addView(menuArea)
         root.addView(scroll)
+        root.addView(bottomMenu(selectedMenu))
         setContentView(root)
     }
 
@@ -823,20 +814,25 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun topMenu(selected: String): LinearLayout {
+    private fun bottomMenu(selected: String): LinearLayout {
         val buttons = listOf(
-            compactButton("홈", if (selected == "홈") BUTTON_PRIMARY else BUTTON_QUIET) { showHome() },
-            compactButton("투표", if (selected == "투표") BUTTON_PRIMARY else BUTTON_QUIET) { showCompose() },
-            compactButton("결과", if (selected == "결과") BUTTON_PRIMARY else BUTTON_QUIET) { showHistory() },
-            compactButton("설정", if (selected == "설정") BUTTON_PRIMARY else BUTTON_QUIET) { showSettings() }
+            menuItem("홈", "⌂", selected == "홈") { showHome() },
+            menuItem("투표", "+", selected == "투표") { showCompose() },
+            menuItem("결과", "▤", selected == "결과") { showHistory() },
+            menuItem("설정", "⚙", selected == "설정") { showSettings() }
         )
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = blockParams()
+            setPadding(dp(12), dp(8), dp(12), dp(12))
+            background = rounded(0xFFFFFFFF.toInt(), 0, 0xFFD8E2DA.toInt(), 1)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(58), 1f).apply {
                     rightMargin = dp(8)
                 }
                 buttons.forEachIndexed { index, button ->
@@ -849,6 +845,22 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 }
             })
             addView(topConnectionBadge())
+        }
+    }
+
+    private fun menuItem(label: String, icon: String, selected: Boolean, onClick: () -> Unit): TextView {
+        return TextView(this).apply {
+            text = "$icon\n$label"
+            gravity = Gravity.CENTER
+            textSize = 12f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF526158.toInt())
+            background = if (selected) {
+                rounded(0xFF176B4D.toInt(), 14)
+            } else {
+                rounded(0xFFE9EEE9.toInt(), 14)
+            }
+            setOnClickListener { onClick() }
         }
     }
 
