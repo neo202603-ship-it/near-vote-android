@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private var autoConnectEnabled = true
     private var connectedCount = 0
     private var activePoll: NearbyPoll? = null
-    private var incomingPoll: NearbyPoll? = null
+    private val incomingPolls = linkedMapOf<String, NearbyPoll>()
     private var latestReceipt: VoteReceipt? = null
     private var sharedResult: SharedResult? = null
     private val receivedVotes = linkedMapOf<String, String>()
@@ -143,7 +143,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(actionCard("설문 만들기", "질문과 선택지를 정하고 주변 사람에게 참여 요청을 보냅니다.") {
             showCompose()
         })
-        page.addView(actionCard("참여할 투표 찾기", "근처에서 진행 중인 투표를 찾습니다.") {
+        val incomingCount = visibleIncomingPolls().size
+        page.addView(actionCard("진행중인 투표(${incomingCount}건)", "근처에서 받은 투표 요청을 확인합니다.") {
             showDiscover()
         })
     }
@@ -159,7 +160,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             page.addView(actionCard("게시 중: ${poll.question}", subtitle) { showPublishedPoll(poll) })
         }
-        incomingPoll?.let { poll ->
+        visibleIncomingPolls().forEach { poll ->
             hasSession = true
             val submitted = submittedVotes[poll.id]
             val accepted = acceptedPollIds.contains(poll.id)
@@ -428,18 +429,28 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showDiscover() {
         setPage("투표")
         rememberScreen { showDiscover() }
-        page.addView(breadcrumb("홈", "투표", "참여할 투표 찾기"))
-        page.addView(topBar("참여할 투표 찾기"))
-        val poll = incomingPoll
-        if (poll == null) {
+        val polls = visibleIncomingPolls()
+        page.addView(breadcrumb("홈", "투표", "진행중인 투표"))
+        page.addView(topBar("진행중인 투표(${polls.size}건)"))
+        if (polls.isEmpty()) {
             page.addView(statusCard(if (autoConnectEnabled) "자동 연결 대기 중" else "자동 연결 꺼짐", connectionStatusText()))
             page.addView(emptyCard("아직 받은 투표 없음", "근처 사용자가 설문을 게시하면 참여 요청으로 먼저 표시됩니다."))
         } else {
-            page.addView(infoCard("받은 설문", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
-            if (acceptedPollIds.contains(poll.id) || submittedVotes.containsKey(poll.id)) {
-                page.addView(primaryButton("투표 화면 열기") { showVotePoll(poll) })
-            } else {
-                page.addView(primaryButton("참여 요청 확인") { showPollInvitation(poll) })
+            polls.forEach { poll ->
+                val submitted = submittedVotes[poll.id]
+                val accepted = acceptedPollIds.contains(poll.id)
+                val subtitle = when {
+                    submitted != null -> "내 선택: $submitted"
+                    accepted -> "${poll.proposerName} 제안 · ${poll.remainingText()}"
+                    else -> "${poll.proposerName}님의 참여 요청 · 수락 후 투표 가능"
+                }
+                page.addView(actionCard(poll.question, subtitle) {
+                    if (accepted || submitted != null) {
+                        showVotePoll(poll)
+                    } else {
+                        showPollInvitation(poll)
+                    }
+                })
             }
         }
         page.addView(buttonRow(
@@ -464,9 +475,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             },
             compactButton("거절", BUTTON_OUTLINE) {
                 declinedPollIds += poll.id
-                if (incomingPoll?.id == poll.id) {
-                    incomingPoll = null
-                }
+                incomingPolls.remove(poll.id)
                 Toast.makeText(this, "투표 요청을 거절했습니다.", Toast.LENGTH_SHORT).show()
                 showHome()
             }
@@ -1230,6 +1239,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun visibleIncomingPolls(): List<NearbyPoll> {
+        return incomingPolls.values
+            .filter { poll -> !poll.hasEnded() && !declinedPollIds.contains(poll.id) }
+            .sortedBy { it.endAtMillis }
+    }
+
     private fun isMyResult(result: SharedResult): Boolean {
         return result.proposerId == userId
     }
@@ -1275,7 +1290,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator = LocalVoteSimulator(selfName)
         connectedCount = 0
         activePoll = null
-        incomingPoll = null
+        incomingPolls.clear()
         latestReceipt = null
         sharedResult = null
         receivedVotes.clear()
@@ -1383,7 +1398,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     return
                 }
                 val alreadyKnown = !seenIncomingPollIds.add(poll.id)
-                incomingPoll = poll
+                incomingPolls[poll.id] = poll
                 if (alreadyKnown || submittedVotes.containsKey(poll.id)) {
                     appendLog("이미 받은 설문 갱신: ${poll.question}")
                     return
@@ -1423,7 +1438,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 if (receipt.voterId == userId) {
                     latestReceipt = receipt
                     store.saveReceipt(receipt)
-                    incomingPoll?.takeIf { it.id == receipt.pollId }?.let { poll ->
+                    incomingPolls[receipt.pollId]?.let { poll ->
                         runOnUiThread { showVoteSubmitted(poll, submittedVotes[receipt.pollId] ?: "선택 완료") }
                     }
                 }
