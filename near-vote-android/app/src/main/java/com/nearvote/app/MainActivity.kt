@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         sharedResult?.let { result ->
             hasSession = true
-            page.addView(actionCard("최근 결과: ${result.question}", "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
+            page.addView(actionCard("${resultOwnershipIcon(result)} 최근 결과: ${result.question}", "${resultOwnershipLabel(result)} · 참여자 ${result.participantCount}명 · 검증 ${if (result.isHashValid()) "완료" else "필요"}") {
                 showSharedResult(result)
             })
         }
@@ -185,7 +185,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(primaryButton("설문 만들기") { showCompose() })
         } else {
             results.forEach { result ->
-                page.addView(actionCard(result.question, "${resultOwnershipLabel(result)} · ${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명") {
+                page.addView(actionCard("${resultOwnershipIcon(result)} ${result.question}", "${resultOwnershipLabel(result)} · ${friendlyTime(result.createdAtMillis)} · 참여자 ${result.participantCount}명") {
                     showSharedResult(result)
                 })
             }
@@ -988,6 +988,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun resultOwnershipLabel(result: SharedResult): String {
         return if (isMyResult(result)) "내가 만든 투표" else "공유받은 투표"
+    }
+
+    private fun resultOwnershipIcon(result: SharedResult): String {
+        return if (isMyResult(result)) "📝" else "📥"
     }
 
     private fun friendlyTime(timestampMillis: Long): String {
