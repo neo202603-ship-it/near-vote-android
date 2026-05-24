@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
     private lateinit var logView: TextView
     private lateinit var connectionStatusView: TextView
+    private var topConnectionBadgeContainerView: FrameLayout? = null
     private var topConnectionBadgeView: TextView? = null
     private var compactTitleBarView: LinearLayout? = null
     private var compactTitleTextView: TextView? = null
@@ -1088,17 +1089,25 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun topConnectionBadge(): TextView {
-        return TextView(this).apply {
-            text = topConnectionBadgeText()
-            textSize = 15f
-            gravity = Gravity.CENTER
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(connectionBadgeTextColor())
+    private fun topConnectionBadge(): FrameLayout {
+        return FrameLayout(this).apply {
             background = rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
             layoutParams = LinearLayout.LayoutParams(dp(44), dp(38))
+            clipChildren = true
             setOnClickListener { showConnectionPopup() }
-            topConnectionBadgeView = this
+            addView(TextView(context).apply {
+                text = topConnectionBadgeText()
+                textSize = 15f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(connectionBadgeTextColor())
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                topConnectionBadgeView = this
+            })
+            topConnectionBadgeContainerView = this
         }
     }
 
@@ -1816,10 +1825,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 connectionStatusView.setTextColor(connectionBadgeTextColor())
                 connectionStatusView.background = rounded(connectionBadgeBackgroundColor(), 24, connectionBadgeStrokeColor(), 2)
             }
+            topConnectionBadgeContainerView?.background =
+                rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
             topConnectionBadgeView?.let { badge ->
                 val nextText = topConnectionBadgeText()
                 badge.setTextColor(connectionBadgeTextColor())
-                badge.background = rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
                 if (animateBadge && badge.text.toString() != nextText) {
                     animateConnectionBadge(badge, nextText)
                 } else {
