@@ -539,7 +539,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(statusCard(if (ended) "투표 종료" else "투표 진행 중", poll.statusText(connectedCount)))
         page.addView(countdownCard(poll))
         if (!ended) {
-            page.addView(primaryButton("참여 요청 다시 보내기") { sendPoll(poll) })
             page.addView(label("내 표도 참여할 수 있어요"))
             if (receivedVotes.containsKey(userId)) {
                 page.addView(statusCard("이미 참여 완료", receivedVotes[userId].orEmpty()))
