@@ -836,6 +836,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private inner class OptionTagEditor(initialOptions: List<String>) {
         private val options = initialOptions.map { it.trim() }.filter { it.isNotBlank() }.distinct().toMutableList()
+        private var editingIndex: Int? = null
         private val tags = LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -861,16 +862,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 addView(newOptionInput)
-                addView(compactButton("추가", BUTTON_CHOICE) {
-                    val candidate = newOptionInput.text.toString().trim()
-                    if (addOption(candidate)) {
-                        newOptionInput.text.clear()
-                    }
-                }.apply {
+                addView(compactButton("추가", BUTTON_CHOICE) { submitOption() }.apply {
+                    updateButton = this
                     layoutParams = LinearLayout.LayoutParams(dp(70), dp(48))
                 })
             })
         }
+        private lateinit var updateButton: Button
 
         init {
             render()
@@ -878,44 +876,39 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
         fun values(): List<String> = options.toList()
 
-        private fun addOption(candidate: String): Boolean {
+        private fun submitOption() {
+            val candidate = newOptionInput.text.toString().trim()
             if (candidate.isBlank()) {
                 Toast.makeText(this@MainActivity, "선택지를 입력해 주세요.", Toast.LENGTH_SHORT).show()
-                return false
+                return
             }
-            if (options.contains(candidate)) {
+            val selectedIndex = editingIndex
+            if (options.any { it == candidate } && (selectedIndex == null || options[selectedIndex] != candidate)) {
                 Toast.makeText(this@MainActivity, "이미 있는 선택지입니다.", Toast.LENGTH_SHORT).show()
-                return false
+                return
             }
-            options += candidate
+            if (selectedIndex == null) {
+                options += candidate
+            } else {
+                options[selectedIndex] = candidate
+            }
+            resetEditor()
             render()
-            return true
         }
 
-        private fun editOption(index: Int) {
-            val input = EditText(this@MainActivity).apply {
-                setText(options[index])
-                selectAll()
-                textSize = 16f
-                setPadding(dp(16), dp(12), dp(16), dp(12))
-            }
-            AlertDialog.Builder(this@MainActivity)
-                .setTitle("선택지 수정")
-                .setView(input)
-                .setPositiveButton("저장") { _, _ ->
-                    val updated = input.text.toString().trim()
-                    when {
-                        updated.isBlank() -> Toast.makeText(this@MainActivity, "선택지를 입력해 주세요.", Toast.LENGTH_SHORT).show()
-                        options.any { it == updated } && options[index] != updated ->
-                            Toast.makeText(this@MainActivity, "이미 있는 선택지입니다.", Toast.LENGTH_SHORT).show()
-                        else -> {
-                            options[index] = updated
-                            render()
-                        }
-                    }
-                }
-                .setNegativeButton("취소", null)
-                .show()
+        private fun selectForEdit(index: Int) {
+            editingIndex = index
+            newOptionInput.setText(options[index])
+            newOptionInput.selectAll()
+            newOptionInput.hint = "선택지 수정"
+            updateButton.text = "수정"
+        }
+
+        private fun resetEditor() {
+            editingIndex = null
+            newOptionInput.text.clear()
+            newOptionInput.hint = "선택지 추가"
+            updateButton.text = "추가"
         }
 
         private fun render() {
@@ -937,14 +930,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                         textSize = 15f
                         setTextColor(0xFF123126.toInt())
                         setTypeface(typeface, Typeface.BOLD)
-                        setOnClickListener { editOption(index) }
-                    })
-                    addView(TextView(context).apply {
-                        text = "수정"
-                        textSize = 12f
-                        setTextColor(0xFF176B4D.toInt())
-                        setPadding(dp(10), 0, dp(8), 0)
-                        setOnClickListener { editOption(index) }
+                        setPadding(0, 0, dp(10), 0)
+                        setOnClickListener { selectForEdit(index) }
                     })
                     addView(TextView(context).apply {
                         text = "×"
@@ -953,6 +940,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                         setTextColor(0xFF8B1E1E.toInt())
                         setOnClickListener {
                             options.removeAt(index)
+                            if (editingIndex == index) {
+                                resetEditor()
+                            } else if (editingIndex != null && editingIndex!! > index) {
+                                editingIndex = editingIndex!! - 1
+                            }
                             render()
                         }
                     })
