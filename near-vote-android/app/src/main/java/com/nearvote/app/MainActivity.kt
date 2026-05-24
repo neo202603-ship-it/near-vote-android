@@ -121,8 +121,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showHome() {
-        setPage()
-        page.addView(topMenu("홈"))
+        setPage("홈")
         page.addView(breadcrumb("홈"))
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
@@ -177,8 +176,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun showHistory() {
         val results = store.loadResultHistory()
-        setPage()
-        page.addView(topMenu("결과"))
+        setPage("결과")
         page.addView(breadcrumb("홈", "결과"))
         page.addView(topBar("지난 결과"))
         if (results.isEmpty()) {
@@ -194,8 +192,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showMyPage() {
-        setPage()
-        page.addView(topMenu("설정"))
+        setPage("설정")
         page.addView(breadcrumb("홈", "설정", "내 아이디"))
         page.addView(topBar("내 아이디"))
         page.addView(bodyText("아이디는 결과와 참여자 목록에 표시됩니다. 따로 만들지 않아도 제안 아이디를 바로 사용할 수 있습니다."))
@@ -218,8 +215,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showSettings() {
-        setPage()
-        page.addView(topMenu("설정"))
+        setPage("설정")
         page.addView(breadcrumb("홈", "설정"))
         page.addView(topBar("설정"))
         page.addView(statusCard(
@@ -238,8 +234,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showCompose(template: PollTemplate? = null) {
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "설문 만들기"))
         page.addView(topBar("설문 만들기"))
         page.addView(bodyText("질문과 선택지를 입력하고 주변 사람에게 바로 게시합니다."))
@@ -293,8 +288,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         currentOptions: String = "한식\n분식\n샐러드",
         currentDuration: String = "300"
     ) {
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "템플릿 선택"))
         page.addView(topBar("템플릿 선택"))
         page.addView(bodyText("템플릿을 선택하면 설문 작성 화면에 질문과 선택지가 채워집니다."))
@@ -353,8 +347,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showDiscover() {
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "참여할 투표 찾기"))
         page.addView(topBar("참여할 투표 찾기"))
         val poll = incomingPoll
@@ -373,8 +366,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun showPublishedPoll(poll: NearbyPoll) {
         val ended = poll.hasEnded()
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "게시한 투표"))
         page.addView(topBar("게시한 투표"))
         page.addView(infoCard("설문", poll.question, poll.options.joinToString(" / ")))
@@ -407,8 +399,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showVotePoll(poll: NearbyPoll) {
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "투표 참여"))
         page.addView(topBar("투표 참여"))
         page.addView(infoCard("설문", poll.question, "제안자: ${poll.proposerName} · ${poll.remainingText()}"))
@@ -435,8 +426,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showVoteSubmitted(poll: NearbyPoll, option: String) {
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "투표 완료"))
         page.addView(topBar("투표 완료"))
         page.addView(statusCard("내 표를 보냈습니다", "${poll.question} · $option"))
@@ -452,8 +442,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showSharedResult(result: SharedResult) {
-        setPage()
-        page.addView(topMenu("결과"))
+        setPage("결과")
         page.addView(breadcrumb("홈", "결과", if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
         page.addView(topBar(if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
         page.addView(infoCard("설문", result.question, "${resultOwnershipLabel(result)} · 제안자: ${result.proposerName} · ${friendlyTime(result.createdAtMillis)}"))
@@ -495,8 +484,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun showSimulationResult() {
         val preview = simulator.preview()
-        setPage()
-        page.addView(topMenu("투표"))
+        setPage("투표")
         page.addView(breadcrumb("홈", "투표", "미리보기"))
         page.addView(topBar("투표 결과"))
         page.addView(infoCard("설문", preview.question, preview.options.joinToString(" / ")))
@@ -510,8 +498,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showDiagnostics(runSimulation: Boolean = false, autoStart: Boolean = false) {
-        setPage()
-        page.addView(topMenu("설정"))
+        setPage("설정")
         page.addView(breadcrumb("홈", "설정", "고급 진단"))
         page.addView(topBar("개발자 진단"))
         connectionStatusView = statusCard("연결 상태", connectionStatusText())
@@ -542,16 +529,36 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun setPage() {
+    private fun setPage(selectedMenu: String) {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFFF4F6F1.toInt())
+        }
+        val menuArea = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(24), dp(18), 0)
+            addView(topMenu(selectedMenu))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
         val scroll = ScrollView(this).apply {
             setBackgroundColor(0xFFF4F6F1.toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
         }
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(24), dp(18), dp(28))
+            setPadding(dp(18), 0, dp(18), dp(28))
         }
         scroll.addView(page)
-        setContentView(scroll)
+        root.addView(menuArea)
+        root.addView(scroll)
+        setContentView(root)
     }
 
     private fun header(title: String, subtitle: String): LinearLayout {
