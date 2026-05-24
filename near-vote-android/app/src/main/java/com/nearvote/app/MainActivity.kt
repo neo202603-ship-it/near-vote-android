@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             } else {
                 "${poll.remainingText()} · 참여자 ${receivedVotes.size}명 · 연결 ${connectedCount}대"
             }
-            page.addView(pollActionCard("게시 중: ${poll.question}", subtitle, poll) { showPublishedPoll(poll) })
+            page.addView(pollActionCard("📝 ${poll.question}", subtitle, poll) { showPublishedPoll(poll) })
         }
         visibleIncomingPolls().forEach { poll ->
             hasSession = true
@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 accepted -> "${poll.proposerName} 제안 · ${poll.remainingText()}"
                 else -> "${poll.proposerName}님의 참여 요청 · 수락 후 투표 가능"
             }
-            page.addView(pollActionCard("받은 투표: ${poll.question}", subtitle, poll) {
+            page.addView(pollActionCard("📥 ${poll.question}", subtitle, poll) {
                 if (accepted || submitted != null) {
                     showVotePoll(poll)
                 } else {
