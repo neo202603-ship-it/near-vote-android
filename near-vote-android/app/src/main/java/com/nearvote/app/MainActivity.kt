@@ -368,16 +368,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         currentOptions: String,
         currentDuration: String
     ): LinearLayout {
-        val source = if (template.builtIn) "기본 템플릿" else "내 템플릿"
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = blockParams()
         }
-        val card = actionCard(
-            "$source > ${template.title}",
-            "제한시간 ${template.durationSeconds}초 · ${template.options.joinToString(" / ")}"
-        ) {
+        val card = templateCard(template) {
             showCompose(template)
         }.apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -428,6 +424,46 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             row.addView(deleteButton)
         }
         return row
+    }
+
+    private fun templateCard(template: PollTemplate, onClick: () -> Unit): LinearLayout {
+        val icon = if (template.builtIn) "☆" else "👤"
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, dp(16), 0)
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFE0E7DD.toInt())
+            setOnClickListener { onClick() }
+            layoutParams = blockParams()
+            addView(View(context).apply {
+                background = rounded(0xFF176B4D.toInt(), 16)
+                layoutParams = LinearLayout.LayoutParams(dp(6), ViewGroup.LayoutParams.MATCH_PARENT)
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(16), dp(12), dp(16))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = "$icon ${template.title}"
+                    textSize = 18f
+                    setTextColor(0xFF10251D.toInt())
+                    setTypeface(typeface, Typeface.BOLD)
+                })
+                addView(templateTagBar(template).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = dp(8)
+                    }
+                })
+            })
+            addView(TextView(context).apply {
+                text = "›"
+                textSize = 28f
+                setTextColor(0xFF8AA093.toInt())
+            })
+        }
     }
 
     private fun showDiscover() {
@@ -1056,6 +1092,34 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 participants.forEach { participant ->
                     addView(TextView(context).apply {
                         text = "#$participant"
+                        textSize = 13f
+                        setTextColor(0xFF245341.toInt())
+                        setPadding(dp(12), dp(8), dp(12), dp(8))
+                        background = rounded(0xFFEAF4EF.toInt(), 18, 0xFFC6DED1.toInt())
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            rightMargin = dp(8)
+                        }
+                    })
+                }
+            })
+        }
+    }
+
+    private fun templateTagBar(template: PollTemplate): HorizontalScrollView {
+        return tagBar(listOf("${template.durationSeconds}초") + template.options)
+    }
+
+    private fun tagBar(tags: List<String>): HorizontalScrollView {
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                tags.forEach { tag ->
+                    addView(TextView(context).apply {
+                        text = tag
                         textSize = 13f
                         setTextColor(0xFF245341.toInt())
                         setPadding(dp(12), dp(8), dp(12), dp(8))
