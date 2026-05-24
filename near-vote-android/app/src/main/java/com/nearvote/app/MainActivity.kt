@@ -193,7 +193,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 })
             }
         }
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showMyPage() {
@@ -289,8 +288,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             store.saveTemplate(template)
             Toast.makeText(this, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
         })
-        page.addView(outlineButton("게시 흐름 미리보기") { showSimulationResult() })
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showTemplatePicker(
@@ -374,8 +371,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             compactButton("새 설문 만들기", BUTTON_PRIMARY) { showCompose() },
             compactButton("연결 확인", BUTTON_OUTLINE) { showDiagnostics() }
         ))
-        page.addView(quietButton("테스트 투표 미리보기") { showSimulationResult() })
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showPublishedPoll(poll: NearbyPoll) {
@@ -411,8 +406,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         if (receivedVotes.isNotEmpty() && !sharedResultPollIds.contains(poll.id)) {
             page.addView(primaryButton(if (ended) "결과 공유하기" else "지금 결과 공유하기") { shareResultBlock(poll) })
         }
-        page.addView(outlineButton("주변 연결 다시 시작") { startNearbyConnectionTest() })
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showVotePoll(poll: NearbyPoll) {
@@ -441,7 +434,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
         }
         page.addView(outlineButton("주변 투표로") { showDiscover() })
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showVoteSubmitted(poll: NearbyPoll, option: String) {
@@ -459,7 +451,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sharedResult?.takeIf { it.pollId == poll.id }?.let {
             page.addView(primaryButton("결과 보기") { showSharedResult(it) })
         }
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showSharedResult(result: SharedResult) {
@@ -502,7 +493,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         (latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId))?.let {
             page.addView(statusCard("내 투표 영수증", it.voteHash.take(16)))
         }
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showSimulationResult() {
@@ -519,8 +509,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
         page.addView(statusCard("검증 완료", "영수증 ${preview.receiptCount}건 · 결과 해시 ${preview.resultHash}"))
         page.addView(primaryButton("다시 미리보기") { showSimulationResult() })
-        page.addView(outlineButton("상세 로그 보기") { showDiagnostics(runSimulation = true) })
-        page.addView(outlineButton("홈으로") { showHome() })
     }
 
     private fun showDiagnostics(runSimulation: Boolean = false, autoStart: Boolean = false) {
