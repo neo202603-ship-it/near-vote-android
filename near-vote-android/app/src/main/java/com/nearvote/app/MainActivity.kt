@@ -123,10 +123,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(header("근거리 투표", "가까이 있는 사람들과 바로 설문을 열고 결과를 나눠 갖습니다."))
         page.addView(topMenu("홈"))
         page.addView(infoCard("내 아이디", selfName, "결과와 참여자 목록에 표시됩니다."))
-        page.addView(buttonRow(
-            compactButton("내 아이디 관리", BUTTON_OUTLINE) { showMyPage() },
-            compactButton("설정", BUTTON_OUTLINE) { showSettings() }
-        ))
         page.addView(sectionTitle("현재 상태"))
         connectionStatusView = statusCard(if (autoConnectEnabled) "자동 연결 중" else "자동 연결 꺼짐", connectionStatusText())
         page.addView(connectionStatusView)
@@ -237,6 +233,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             setAutoConnectEnabled(!autoConnectEnabled)
             showSettings()
         })
+        page.addView(outlineButton("내 아이디 관리") { showMyPage() })
         page.addView(statusCard("내부 사용자 ID", "보이지 않는 고유 ID가 투표 중복 방지와 영수증 검증에 사용됩니다."))
         page.addView(outlineButton("홈으로") { showHome() })
     }
