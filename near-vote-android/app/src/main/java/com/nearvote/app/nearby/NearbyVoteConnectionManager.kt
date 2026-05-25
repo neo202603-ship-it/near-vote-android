@@ -172,6 +172,12 @@ class NearbyVoteConnectionManager(
         }
     }
 
+    fun connectedPeers(): Map<String, String> {
+        return verifiedEndpoints().associate { endpointId ->
+            peerIds.getValue(endpointId) to (peerDisplayNames[endpointId] ?: endpointNames[endpointId] ?: endpointId)
+        }
+    }
+
     fun identifyPeer(endpointId: String, peerId: String, displayName: String) {
         peerIds[endpointId] = peerId
         peerDisplayNames[endpointId] = displayName

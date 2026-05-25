@@ -5,6 +5,7 @@ import org.json.JSONObject
 enum class NearVoteMessageType {
     PROFILE,
     POLL,
+    POLL_RESPONSE,
     VOTE,
     RECEIPT,
     RESULT_BLOCK,
