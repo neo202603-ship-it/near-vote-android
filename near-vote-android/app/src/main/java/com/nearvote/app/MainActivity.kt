@@ -1200,7 +1200,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             setOnClickListener { onClick() }
             layoutParams = blockParams()
             addView(AvatarTileView(resolvedAvatarId(result.proposerId, result.proposerAvatarId)).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(54), dp(54)).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(AVATAR_CARD_SIZE), dp(AVATAR_CARD_SIZE)).apply {
                     rightMargin = dp(12)
                 }
             })
@@ -1303,7 +1303,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             background = rounded(0xFFFFFFFF.toInt(), 14)
             layoutParams = blockParams()
             addView(AvatarTileView(selfAvatarId).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(60), dp(60)).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(AVATAR_CARD_SIZE), dp(AVATAR_CARD_SIZE)).apply {
                     rightMargin = dp(14)
                 }
             })
@@ -1338,7 +1338,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             background = rounded(0xFFFFFFFF.toInt(), 14)
             layoutParams = blockParams()
             addView(AvatarTileView(avatarId).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(58), dp(58)).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(AVATAR_CARD_SIZE), dp(AVATAR_CARD_SIZE)).apply {
                     rightMargin = dp(14)
                 }
             })
@@ -1661,15 +1661,43 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         onPresetSelected: () -> Unit,
         onCustomSelected: () -> Unit
     ): LinearLayout {
-        return compactButtonRow(
-            compactButton("30초", BUTTON_CHOICE) { durationInput.setText("30"); onPresetSelected() },
-            compactButton("1분", BUTTON_CHOICE) { durationInput.setText("60"); onPresetSelected() },
-            compactButton("5분", BUTTON_CHOICE) { durationInput.setText("300"); onPresetSelected() },
-            compactButton("10분", BUTTON_CHOICE) { durationInput.setText("600"); onPresetSelected() },
-            compactButton("15분", BUTTON_CHOICE) { durationInput.setText("900"); onPresetSelected() },
-            compactButton("30분", BUTTON_CHOICE) { durationInput.setText("1800"); onPresetSelected() },
-            compactButton("+", BUTTON_OUTLINE) { onCustomSelected() }
+        val choices = mutableListOf<Pair<Button, Int?>>()
+        fun presetButton(label: String, seconds: Int): Button {
+            return compactButton(label, BUTTON_CHOICE) {
+                durationInput.setText(seconds.toString())
+                onPresetSelected()
+                highlightDurationChoice(choices, seconds)
+            }.also { choices += it to seconds }
+        }
+        val customButton = compactButton("+", BUTTON_OUTLINE) {
+            onCustomSelected()
+            highlightDurationChoice(choices, null)
+        }
+        val buttons = listOf(
+            presetButton("30초", 30),
+            presetButton("1분", 60),
+            presetButton("5분", 300),
+            presetButton("10분", 600),
+            presetButton("15분", 900),
+            presetButton("30분", 1800),
+            customButton.also { choices += it to null }
         )
+        val selectedSeconds = durationInput.text.toString().toIntOrNull()
+            ?.takeIf { isPresetDuration(it) }
+        highlightDurationChoice(choices, selectedSeconds)
+        return compactButtonRow(*buttons.toTypedArray())
+    }
+
+    private fun highlightDurationChoice(choices: List<Pair<Button, Int?>>, selectedSeconds: Int?) {
+        choices.forEach { (button, seconds) ->
+            val selected = seconds == selectedSeconds
+            button.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF176B4D.toInt())
+            button.background = if (selected) {
+                rounded(0xFF176B4D.toInt(), 12, 0xFF176B4D.toInt())
+            } else {
+                rounded(0xFFEAF4EF.toInt(), 12, 0xFFB8D8C8.toInt())
+            }
+        }
     }
 
     private fun isPresetDuration(durationSeconds: Int): Boolean {
@@ -2474,8 +2502,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 (sourceColumn + 1) * sourceWidth,
                 (sourceRow + 1) * sourceHeight
             )
-            val inset = dp(if (isChosen) 4 else 6).toFloat()
-            val target = RectF(inset, inset, width - inset, height - inset)
+            val inset = dp(6).toFloat()
+            val edge = width.coerceAtMost(height).toFloat() - inset * 2
+            val left = (width - edge) / 2f
+            val top = (height - edge) / 2f
+            val target = RectF(left, top, left + edge, top + edge)
             canvas.drawBitmap(avatarSheet, source, target, tilePaint)
             if (isChosen) {
                 canvas.drawRoundRect(target, dp(12).toFloat(), dp(12).toFloat(), selectionPaint)
@@ -2542,6 +2573,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         private const val AVATAR_COLUMN_COUNT = 5
         private const val AVATAR_ROW_COUNT = 4
         private const val AVATAR_COUNT = AVATAR_COLUMN_COUNT * AVATAR_ROW_COUNT
+        private const val AVATAR_CARD_SIZE = 56
         private const val BUTTON_PRIMARY = 1
         private const val BUTTON_OUTLINE = 2
         private const val BUTTON_QUIET = 3
