@@ -235,7 +235,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             page.addView(primaryButton("투표 만들기") { showCompose() })
         } else {
             results.forEach { result ->
-                page.addView(resultActionCard(result.question, resultMetadata(friendlyTime(result.createdAtMillis), "참여자 ${result.participantCount}명"), result) {
+                val metadata = mutableListOf(friendlyTime(result.createdAtMillis), "참여자 ${result.participantCount}명")
+                winningOptionSummary(result)?.let { metadata += it }
+                page.addView(resultActionCard(result.question, resultMetadata(*metadata.toTypedArray()), result) {
                     showSharedResult(result)
                 })
             }
@@ -254,19 +256,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(avatarPicker(selfAvatarId) { selectedAvatarId = it })
         page.addView(label("현재 아이디"))
         page.addView(identityInput)
-        page.addView(outlineButton("새 아이디 제안") {
-            identityInput.setText(suggestIdentity())
-        })
-        page.addView(primaryButton("저장하기") {
-            val nextIdentity = identityInput.text.toString().trim()
-            if (nextIdentity.length < 2) {
-                Toast.makeText(this, "아이디는 2글자 이상 입력해 주세요.", Toast.LENGTH_SHORT).show()
-                return@primaryButton
+        page.addView(buttonRow(
+            outlineButton("아이디 제안") {
+                identityInput.setText(suggestIdentity())
+            },
+            primaryButton("저장하기") {
+                val nextIdentity = identityInput.text.toString().trim()
+                if (nextIdentity.length < 2) {
+                    Toast.makeText(this, "아이디는 2글자 이상 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                    return@primaryButton
+                }
+                saveIdentity(nextIdentity, selectedAvatarId)
+                Toast.makeText(this, "아이디 저장 완료", Toast.LENGTH_SHORT).show()
+                showHome()
             }
-            saveIdentity(nextIdentity, selectedAvatarId)
-            Toast.makeText(this, "아이디 저장 완료", Toast.LENGTH_SHORT).show()
-            showHome()
-        })
+        ))
     }
 
     private fun showSettings() {
@@ -749,7 +753,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(avatarInfoCard("투표", result.question, resultMetadata("제안자: ${result.proposerName}", friendlyTime(result.createdAtMillis)), resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
-        result.options.forEach { option ->
+        rankedResultOptions(result).forEach { option ->
             val count = result.counts[option] ?: 0
             val participants = if (result.participantSelections.isNotEmpty()) {
                 result.participantIds.mapIndexedNotNull { index, participantId ->
@@ -1529,6 +1533,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             setPadding(dp(14), dp(12), dp(18), dp(12))
             background = rounded(0xFFFFFFFF.toInt(), 14)
             layoutParams = blockParams()
+            setOnClickListener { showMyPage() }
             addView(AvatarTileView(selfAvatarId).apply {
                 layoutParams = LinearLayout.LayoutParams(dp(AVATAR_CARD_SIZE), dp(AVATAR_CARD_SIZE)).apply {
                     rightMargin = dp(14)
@@ -1536,6 +1541,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 addView(TextView(context).apply {
                     text = "내 아이디"
                     textSize = 13f
@@ -1553,6 +1559,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     textSize = 13f
                     setTextColor(0xFF526158.toInt())
                 })
+            })
+            addView(TextView(context).apply {
+                text = "›"
+                textSize = 28f
+                setTextColor(0xFF8AA093.toInt())
             })
         }
     }
@@ -2315,6 +2326,22 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun resultMetadata(vararg details: String): String {
         return details.joinToString(" · ")
+    }
+
+    private fun rankedResultOptions(result: SharedResult): List<String> {
+        return result.options.withIndex()
+            .sortedWith(compareByDescending<IndexedValue<String>> { result.counts[it.value] ?: 0 }.thenBy { it.index })
+            .map { it.value }
+    }
+
+    private fun winningOptionSummary(result: SharedResult): String? {
+        val winningCount = result.counts.values.maxOrNull() ?: return null
+        if (winningCount <= 0) {
+            return null
+        }
+        val winningOptions = rankedResultOptions(result).filter { option -> result.counts[option] == winningCount }
+        val label = if (winningOptions.size == 1) "1위" else "공동 1위"
+        return "$label ${winningOptions.joinToString(", ")}"
     }
 
     private fun friendlyTime(timestampMillis: Long): String {
