@@ -1265,15 +1265,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun profileAvatarButton(compact: Boolean = false): FrameLayout {
         val size = if (compact) dp(44) else dp(48)
-        val tileSize = if (compact) dp(39) else dp(42)
+        val frameSize = if (compact) dp(42) else dp(46)
+        val tileSize = if (compact) dp(36) else dp(40)
         return FrameLayout(this).apply {
             isClickable = true
             isFocusable = true
             contentDescription = "내 아이디 관리"
             layoutParams = LinearLayout.LayoutParams(size, size)
             setOnClickListener { showMyPage() }
-            addView(AvatarTileView(selfAvatarId).apply {
-                layoutParams = FrameLayout.LayoutParams(tileSize, tileSize, Gravity.CENTER)
+            addView(FrameLayout(context).apply {
+                background = rounded(0xFFEAF4EF.toInt(), 15, 0xFF7CAD93.toInt(), 2)
+                layoutParams = FrameLayout.LayoutParams(frameSize, frameSize, Gravity.CENTER)
+                addView(AvatarTileView(selfAvatarId).apply {
+                    layoutParams = FrameLayout.LayoutParams(tileSize, tileSize, Gravity.CENTER)
+                })
             })
         }
     }
