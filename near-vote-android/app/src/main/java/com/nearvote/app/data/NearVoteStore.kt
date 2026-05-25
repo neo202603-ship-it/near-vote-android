@@ -46,6 +46,14 @@ class NearVoteStore(context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_CONNECT, enabled).apply()
     }
 
+    fun saveSessionState(stateJson: String) {
+        prefs.edit().putString(KEY_SESSION_STATE, stateJson).apply()
+    }
+
+    fun loadSessionState(): String? {
+        return prefs.getString(KEY_SESSION_STATE, null)
+    }
+
     fun saveReceipt(receipt: VoteReceipt) {
         val receipts = JSONObject(prefs.getString(KEY_RECEIPTS, "{}").orEmpty().ifBlank { "{}" })
         receipts.put(receipt.pollId, receipt.toJson())
@@ -117,6 +125,7 @@ class NearVoteStore(context: Context) {
         private const val KEY_AVATAR_ID = "avatar_id"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_AUTO_CONNECT = "auto_connect"
+        private const val KEY_SESSION_STATE = "session_state"
         private const val KEY_RECEIPTS = "receipts"
         private const val KEY_RESULTS = "results"
         private const val KEY_TEMPLATES = "templates"

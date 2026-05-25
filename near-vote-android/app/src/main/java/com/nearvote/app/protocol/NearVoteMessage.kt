@@ -3,6 +3,7 @@ package com.nearvote.app.protocol
 import org.json.JSONObject
 
 enum class NearVoteMessageType {
+    PROFILE,
     POLL,
     VOTE,
     RECEIPT,

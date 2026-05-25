@@ -36,6 +36,8 @@ class NearbyVoteConnectionManager(
     private val connectedEndpoints = linkedSetOf<String>()
     private val pendingEndpoints = linkedSetOf<String>()
     private val endpointNames = mutableMapOf<String, String>()
+    private val peerIds = mutableMapOf<String, String>()
+    private val peerDisplayNames = mutableMapOf<String, String>()
     private var isAdvertising = false
     private var isDiscovering = false
 
@@ -44,10 +46,7 @@ class NearbyVoteConnectionManager(
             endpointNames[endpointId] = connectionInfo.endpointName
             listener.onLog("${connectionInfo.endpointName} 연결 요청 수신")
             val isKnownPeer = connectedEndpoints.contains(endpointId) || pendingEndpoints.contains(endpointId)
-            val isDuplicatePeerName = activeEndpoints().any { existingId ->
-                endpointNames[existingId] == connectionInfo.endpointName
-            }
-            if (!isKnownPeer && !isDuplicatePeerName && connectionSlotsUsed() >= MAX_CONNECTIONS) {
+            if (!isKnownPeer && connectionSlotsUsed() >= MAX_CONNECTIONS) {
                 client.rejectConnection(endpointId)
                 listener.onLog("연결 제한 ${MAX_CONNECTIONS}대 도달: ${connectionInfo.endpointName} 요청 거절")
                 return
@@ -60,7 +59,6 @@ class NearbyVoteConnectionManager(
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             pendingEndpoints -= endpointId
             if (result.status.isSuccess) {
-                removeDuplicateConnections(endpointId)
                 if (!connectedEndpoints.contains(endpointId) && activeEndpoints().size >= MAX_CONNECTIONS) {
                     client.disconnectFromEndpoint(endpointId)
                     listener.onLog("연결 제한 ${MAX_CONNECTIONS}대 도달: ${endpointNames[endpointId] ?: endpointId} 연결 종료")
@@ -168,7 +166,20 @@ class NearbyVoteConnectionManager(
     }
 
     fun connectedPeerNames(): List<String> {
-        return activeEndpoints().map { endpointId -> endpointNames[endpointId] ?: endpointId }
+        return activeEndpoints().map { endpointId ->
+            peerDisplayNames[endpointId] ?: endpointNames[endpointId] ?: endpointId
+        }
+    }
+
+    fun identifyPeer(endpointId: String, peerId: String, displayName: String) {
+        peerIds[endpointId] = peerId
+        peerDisplayNames[endpointId] = displayName
+        removeDuplicateConnections(endpointId, peerId)
+        notifyConnectionCount()
+    }
+
+    fun endpointForPeer(peerId: String): String? {
+        return activeEndpoints().firstOrNull { endpointId -> peerIds[endpointId] == peerId }
     }
 
     fun sendToAll(message: String) {
@@ -202,23 +213,25 @@ class NearbyVoteConnectionManager(
         client.stopAllEndpoints()
         connectedEndpoints.clear()
         pendingEndpoints.clear()
+        peerIds.clear()
+        peerDisplayNames.clear()
         isAdvertising = false
         isDiscovering = false
         listener.onConnectionCountChanged(0)
     }
 
     private fun activeEndpoints(): List<String> {
-        return connectedEndpoints.distinctBy { endpointId -> endpointNames[endpointId] ?: endpointId }
+        return connectedEndpoints.distinctBy { endpointId -> peerIds[endpointId] ?: endpointId }
     }
 
     private fun connectionSlotsUsed(): Int {
         return activeEndpoints().size + pendingEndpoints.size
     }
 
-    private fun removeDuplicateConnections(newEndpointId: String) {
-        val newName = endpointNames[newEndpointId] ?: newEndpointId
+    private fun removeDuplicateConnections(newEndpointId: String, peerId: String) {
+        val newName = peerDisplayNames[newEndpointId] ?: endpointNames[newEndpointId] ?: peerId
         val duplicates = connectedEndpoints.filter { endpointId ->
-            endpointId != newEndpointId && (endpointNames[endpointId] ?: endpointId) == newName
+            endpointId != newEndpointId && peerIds[endpointId] == peerId
         }
         duplicates.forEach { endpointId ->
             connectedEndpoints -= endpointId

@@ -46,6 +46,7 @@ import com.nearvote.app.nearby.NearbyVoteConnectionManager
 import com.nearvote.app.protocol.NearVoteMessage
 import com.nearvote.app.protocol.NearVoteMessageType
 import com.nearvote.app.simulation.LocalVoteSimulator
+import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
@@ -97,6 +98,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private val receivedVotesByPoll = linkedMapOf<String, LinkedHashMap<String, String>>()
     private val receivedVoteNamesByPoll = linkedMapOf<String, LinkedHashMap<String, String>>()
     private val receivedVoteAvatarsByPoll = linkedMapOf<String, LinkedHashMap<String, Int>>()
+    private val voteEndpointIdsByPoll = linkedMapOf<String, LinkedHashMap<String, String>>()
     private val submittedVotes = linkedMapOf<String, String>()
     private val acceptedPollIds = linkedSetOf<String>()
     private val declinedPollIds = linkedSetOf<String>()
@@ -128,6 +130,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         autoConnectEnabled = store.isAutoConnectEnabled()
         nearby = NearbyVoteConnectionManager(this, selfName, this)
         simulator = LocalVoteSimulator(selfName)
+        restoreSessionState()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 goBackInApp()
@@ -157,7 +160,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     override fun onEndpointConnected(endpointId: String) {
         appendLog("연결됨: $endpointId")
-        syncCurrentSessionToPeers()
+        sendProfile(endpointId)
     }
 
     override fun onEndpointDisconnected(endpointId: String) {
@@ -210,7 +213,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         sharedResult?.let { result ->
             hasSession = true
             page.addView(sectionTitle("최근 투표"))
-            page.addView(resultActionCard(result.question, resultMetadata("참여자 ${result.participantCount}명", "검증 ${if (result.isHashValid()) "완료" else "필요"}"), result) {
+            page.addView(resultActionCard(result.question, resultMetadata("참여자 ${result.participantCount}명", "무결성 ${if (result.isHashValid()) "확인" else "오류"}"), result) {
                 showSharedResult(result)
             })
         }
@@ -313,6 +316,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             buttonTintList = android.content.res.ColorStateList.valueOf(0xFF176B4D.toInt())
             layoutParams = blockParams()
         }
+        val revealSelectionsInput = CheckBox(this).apply {
+            text = "결과에서 참여자별 선택 공개"
+            textSize = 15f
+            setTextColor(0xFF23362D.toInt())
+            isChecked = selectedTemplate.revealSelections
+            buttonTintList = android.content.res.ColorStateList.valueOf(0xFF176B4D.toInt())
+            layoutParams = blockParams()
+        }
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
         val hasCustomDuration = !isPresetDuration(selectedTemplate.durationSeconds)
         val extendedDurationChoices = extendedDurationChoices()
@@ -346,7 +357,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 questionInput.text.toString(),
                 optionEditor.values().joinToString("\n"),
                 durationInput.text.toString(),
-                allowParticipantOptionsInput.isChecked
+                allowParticipantOptionsInput.isChecked,
+                revealSelectionsInput.isChecked
             )
         })
 
@@ -355,6 +367,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(label("선택지"))
         page.addView(optionEditor.view)
         page.addView(allowParticipantOptionsInput)
+        page.addView(revealSelectionsInput)
         page.addView(label("제한시간"))
         page.addView(durationChoiceGrid(
             durationInput = durationInput,
@@ -383,7 +396,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     question,
                     options,
                     durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS),
-                    allowParticipantOptionsInput.isChecked
+                    allowParticipantOptionsInput.isChecked,
+                    revealSelectionsInput.isChecked
                 )
             }
             if (connectedCount == 0) {
@@ -393,7 +407,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
         }
         val saveTemplateButton = outlineButton("템플릿으로 저장") {
-            val template = buildTemplateFromInputs(questionInput, optionEditor.values(), durationInput, allowParticipantOptionsInput.isChecked) ?: return@outlineButton
+            val template = buildTemplateFromInputs(questionInput, optionEditor.values(), durationInput, allowParticipantOptionsInput.isChecked, revealSelectionsInput.isChecked) ?: return@outlineButton
             store.saveTemplate(template)
             Toast.makeText(this, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
         }
@@ -404,15 +418,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         currentQuestion: String = "",
         currentOptions: String = "",
         currentDuration: String = "300",
-        currentAllowParticipantOptions: Boolean = false
+        currentAllowParticipantOptions: Boolean = false,
+        currentRevealSelections: Boolean = true
     ) {
         setPage("투표")
-        rememberScreen { showTemplatePicker(currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions) }
+        rememberScreen { showTemplatePicker(currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions, currentRevealSelections) }
         page.addView(breadcrumb("홈", "투표", "템플릿 선택"))
         page.addView(topBar("템플릿 선택"))
         page.addView(bodyText("템플릿을 선택하면 투표 작성 화면에 질문과 선택지가 채워집니다."))
         store.loadTemplates().forEach { template ->
-            page.addView(templatePickerRow(template, currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions))
+            page.addView(templatePickerRow(template, currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions, currentRevealSelections))
         }
         page.addView(outlineButton("작성 화면으로") {
             showCompose(
@@ -423,7 +438,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() },
                     durationMinutes = ((currentDuration.toIntOrNull() ?: 300) + 59) / 60,
                     durationSeconds = currentDuration.toIntOrNull() ?: 300,
-                    allowParticipantOptions = currentAllowParticipantOptions
+                    allowParticipantOptions = currentAllowParticipantOptions,
+                    revealSelections = currentRevealSelections
                 )
             )
         })
@@ -437,7 +453,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             options = emptyList(),
             durationMinutes = 5,
             durationSeconds = 300,
-            allowParticipantOptions = false
+            allowParticipantOptions = false,
+            revealSelections = true
         )
     }
 
@@ -445,7 +462,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         questionInput: EditText,
         options: List<String>,
         durationInput: EditText,
-        allowParticipantOptions: Boolean
+        allowParticipantOptions: Boolean,
+        revealSelections: Boolean
     ): PollTemplate? {
         val question = questionInput.text.toString().trim()
         if (question.isBlank()) {
@@ -465,7 +483,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             options = options,
             durationMinutes = ((durationSeconds + 59) / 60).coerceIn(1, CUSTOM_DURATION_MAX_SECONDS / 60),
             durationSeconds = durationSeconds,
-            allowParticipantOptions = allowParticipantOptions
+            allowParticipantOptions = allowParticipantOptions,
+            revealSelections = revealSelections
         )
     }
 
@@ -474,7 +493,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         currentQuestion: String,
         currentOptions: String,
         currentDuration: String,
-        currentAllowParticipantOptions: Boolean
+        currentAllowParticipantOptions: Boolean,
+        currentRevealSelections: Boolean
     ): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -501,7 +521,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 setOnClickListener {
                     store.deleteTemplate(template.id)
                     Toast.makeText(this@MainActivity, "템플릿 삭제 완료", Toast.LENGTH_SHORT).show()
-                    showTemplatePicker(currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions)
+                    showTemplatePicker(currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions, currentRevealSelections)
                 }
             }
             var downX = 0f
@@ -583,6 +603,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                         setPadding(0, dp(8), 0, 0)
                     })
                 }
+                addView(TextView(context).apply {
+                    text = if (template.revealSelections) "선택 내역 공개" else "득표수만 공개"
+                    textSize = 13f
+                    setTextColor(0xFF66776E.toInt())
+                    setPadding(0, dp(6), 0, 0)
+                })
             })
             addView(TextView(context).apply {
                 text = "›"
@@ -637,15 +663,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         if (poll.allowParticipantOptions) {
             page.addView(bodyText("참여 후 새 선택지를 입력해 바로 투표할 수 있습니다."))
         }
+        if (!poll.revealSelections) {
+            page.addView(bodyText("결과에는 선택지별 득표수만 공개됩니다."))
+        }
         page.addView(bodyText("참여하기를 누르면 선택지 화면으로 이동합니다. 거절하면 이 투표는 홈에서 숨겨집니다."))
         page.addView(buttonRow(
             compactButton("참여하기", BUTTON_PRIMARY) {
                 acceptedPollIds += poll.id
+                persistSessionState()
                 showVotePoll(poll)
             },
             compactButton("거절", BUTTON_OUTLINE) {
                 declinedPollIds += poll.id
                 incomingPolls.remove(poll.id)
+                persistSessionState()
                 Toast.makeText(this, "투표 요청을 거절했습니다.", Toast.LENGTH_SHORT).show()
                 showHome()
             }
@@ -778,6 +809,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 layoutParams = blockParams()
             })
         }
+        if (!result.revealSelections) {
+            page.addView(bodyText("이 투표는 참여자별 선택 내역을 공개하지 않습니다."))
+        }
         page.addView(resultActions(result))
         page.addView(verificationBarcodePanel(
             result = result,
@@ -860,7 +894,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             options = result.options,
             durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1),
             durationSeconds = durationSeconds,
-            allowParticipantOptions = result.allowParticipantOptions
+            allowParticipantOptions = result.allowParticipantOptions,
+            revealSelections = result.revealSelections
         )
     }
 
@@ -876,7 +911,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         preview.resultLines.forEach { result ->
             page.addView(resultRow(result.option, result.count, result.percent))
         }
-        page.addView(statusCard("검증 완료", "영수증 ${preview.receiptCount}건 · 결과 해시 ${preview.resultHash}"))
+        page.addView(statusCard("무결성 확인", "영수증 ${preview.receiptCount}건 · 결과 해시 ${preview.resultHash}"))
         page.addView(primaryButton("다시 미리보기") { showSimulationResult() })
     }
 
@@ -1358,15 +1393,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val peers = nearby.connectedPeerNames()
         val message = if (peers.isEmpty()) {
             if (autoConnectEnabled) {
-                "현재 연결된 기기가 없습니다.\n앱은 주변 기기를 자동으로 찾고 있습니다."
+                "연결된 상대가 없습니다.\n현재 참여 가능 인원은 나를 포함해 1명입니다."
             } else {
-                "현재 연결된 기기가 없습니다.\n설정에서 자동 연결을 켜면 주변 기기를 찾습니다."
+                "연결된 상대가 없습니다.\n설정에서 자동 연결을 켜면 주변 기기를 찾습니다."
             }
         } else {
             peers.joinToString(separator = "\n") { name -> "• $name" }
         }
         AlertDialog.Builder(this)
-            .setTitle(if (autoConnectEnabled) "접속자 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}명" else "자동 연결 꺼짐")
+            .setTitle(if (autoConnectEnabled) "참여 가능 ${participantReadyCount()}/${NearbyVoteConnectionManager.MAX_CONNECTIONS + 1}명" else "자동 연결 꺼짐")
             .setMessage(message)
             .setPositiveButton(if (autoConnectEnabled) "연결 끄기" else "연결 켜기") { _, _ ->
                 setAutoConnectEnabled(!autoConnectEnabled)
@@ -2098,16 +2133,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         updateConnectionStatus()
     }
 
-    private fun syncCurrentSessionToPeers() {
+    private fun syncCurrentSessionToPeer(endpointId: String, peerId: String) {
         handler.postDelayed({
-            if (sharedResultsByPoll.isNotEmpty()) {
-                appendLog("새 연결 기기에 결과 ${sharedResultsByPoll.size}건을 자동 전달")
-                sharedResultsByPoll.values.forEach { result -> sendResultBlock(result) }
-            }
+            sharedResultsByPoll.values
+                .filter { result -> isMyResult(result) && peerId in result.participantIds }
+                .forEach { result -> sendResultBlock(result, listOf(endpointId)) }
             val runningPolls = visibleActivePolls().filter { poll -> !poll.hasEnded() }
             if (runningPolls.isNotEmpty()) {
                 appendLog("새 연결 기기에 진행 중인 투표 ${runningPolls.size}건을 자동 전달")
-                runningPolls.forEach { poll -> sendPoll(poll) }
+                runningPolls.forEach { poll -> sendPoll(poll, endpointId) }
             }
         }, CONNECTION_SYNC_DELAY_MS)
     }
@@ -2233,12 +2267,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun topConnectionBadgeText(): String {
-        return if (autoConnectEnabled) connectedCount.toString() else "🚫"
+        return when {
+            !autoConnectEnabled -> "🚫"
+            !hasNearbyPermissions() -> "!"
+            else -> participantReadyCount().toString()
+        }
     }
 
     private fun connectionBadgeTextColor(): Int {
         return when {
             !autoConnectEnabled -> 0xFF5F6661.toInt()
+            !hasNearbyPermissions() -> 0xFF8B1E1E.toInt()
             connectedCount == 0 -> 0xFF8B1E1E.toInt()
             else -> 0xFF174C8B.toInt()
         }
@@ -2247,6 +2286,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun connectionBadgeBackgroundColor(): Int {
         return when {
             !autoConnectEnabled -> 0xFFE9ECE9.toInt()
+            !hasNearbyPermissions() -> 0xFFFFE8E8.toInt()
             connectedCount == 0 -> 0xFFFFE8E8.toInt()
             else -> 0xFFE7F1FF.toInt()
         }
@@ -2255,6 +2295,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun connectionBadgeStrokeColor(): Int {
         return when {
             !autoConnectEnabled -> 0xFF9AA39C.toInt()
+            !hasNearbyPermissions() -> 0xFFD76A6A.toInt()
             connectedCount == 0 -> 0xFFD76A6A.toInt()
             else -> 0xFF5B91D9.toInt()
         }
@@ -2273,23 +2314,33 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         if (!autoConnectEnabled) {
             return "자동 연결 꺼짐\n설정에서 자동 연결을 켜면 주변 기기를 찾습니다."
         }
+        if (!hasNearbyPermissions()) {
+            return "권한 필요\n주변 기기 연결 권한을 허용해야 투표를 공유할 수 있습니다."
+        }
         if (connectedCount == 0) {
-            return "접속자 없음\n${connectionStatusText()}"
+            return "나만 접속 중\n${connectionStatusText()}"
         }
         val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
-        return "접속자 있음 · 참여가능\n연결된 기기 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}대${peerNames?.let { " · $it" }.orEmpty()}"
+        return "참여 가능 ${participantReadyCount()}명\n연결된 상대 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}명${peerNames?.let { " · $it" }.orEmpty()}"
     }
 
     private fun connectionStatusText(): String {
         if (!autoConnectEnabled) {
             return "설정에서 자동 연결을 켜면 앱 실행 후 주변 기기와 자동으로 연결합니다."
         }
+        if (!hasNearbyPermissions()) {
+            return "주변 기기 검색 권한이 필요합니다. 권한을 허용한 뒤 자동 연결이 시작됩니다."
+        }
         return if (connectedCount == 0) {
-            "연결된 기기 0대 · 약 ${NEARBY_HEARTBEAT_MS / 1000}초마다 주변 연결 상태를 확인합니다."
+            "현재 나만 참여 가능합니다 · 약 ${NEARBY_HEARTBEAT_MS / 1000}초마다 주변 연결 상태를 확인합니다."
         } else {
             val peerNames = nearby.connectedPeerNames().takeIf { it.isNotEmpty() }?.joinToString(", ")
-            "연결된 기기 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}대${peerNames?.let { " · $it" }.orEmpty()} · 투표 게시와 참여가 가능합니다."
+            "참여 가능 ${participantReadyCount()}명 · 연결된 상대 ${connectedCount}/${NearbyVoteConnectionManager.MAX_CONNECTIONS}명${peerNames?.let { " · $it" }.orEmpty()}"
         }
+    }
+
+    private fun participantReadyCount(): Int {
+        return if (autoConnectEnabled && hasNearbyPermissions()) connectedCount + 1 else 0
     }
 
     private fun visibleIncomingPolls(): List<NearbyPoll> {
@@ -2364,34 +2415,125 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         simulator.runDemo().forEach { appendLog(it) }
     }
 
+    private fun persistSessionState() {
+        val state = JSONObject()
+            .put("activePolls", serializePolls(activePolls))
+            .put("incomingPolls", serializePolls(incomingPolls))
+            .put("receivedVotes", serializeNestedStrings(receivedVotesByPoll))
+            .put("receivedVoteNames", serializeNestedStrings(receivedVoteNamesByPoll))
+            .put("receivedVoteAvatars", serializeNestedInts(receivedVoteAvatarsByPoll))
+            .put("submittedVotes", JSONObject(submittedVotes as Map<*, *>))
+            .put("acceptedPollIds", JSONArray(acceptedPollIds.toList()))
+            .put("declinedPollIds", JSONArray(declinedPollIds.toList()))
+            .put("sharedResults", JSONArray(sharedResultsByPoll.values.map { it.toHistoryJson() }))
+        latestReceipt?.let { state.put("latestReceipt", it.toJson()) }
+        store.saveSessionState(state.toString())
+    }
+
+    private fun restoreSessionState() {
+        val state = runCatching { JSONObject(store.loadSessionState() ?: return) }.getOrNull() ?: return
+        restorePolls(state.optJSONObject("activePolls"), activePolls)
+        restorePolls(state.optJSONObject("incomingPolls"), incomingPolls)
+        restoreNestedStrings(state.optJSONObject("receivedVotes"), receivedVotesByPoll)
+        restoreNestedStrings(state.optJSONObject("receivedVoteNames"), receivedVoteNamesByPoll)
+        restoreNestedInts(state.optJSONObject("receivedVoteAvatars"), receivedVoteAvatarsByPoll)
+        readStringMap(state.optJSONObject("submittedVotes")).forEach { (pollId, option) -> submittedVotes[pollId] = option }
+        readStringSet(state.optJSONArray("acceptedPollIds")).forEach { acceptedPollIds += it }
+        readStringSet(state.optJSONArray("declinedPollIds")).forEach { declinedPollIds += it }
+        val results = state.optJSONArray("sharedResults")
+        if (results != null) {
+            for (index in 0 until results.length()) {
+                runCatching { SharedResult.fromHistoryJson(results.getJSONObject(index)) }.getOrNull()?.let { result ->
+                    if (result.isHashValid()) {
+                        sharedResultsByPoll[result.pollId] = result
+                        sharedResultPollIds += result.pollId
+                        sharedResult = result
+                    }
+                }
+            }
+        }
+        state.optJSONObject("latestReceipt")?.let { latestReceipt = runCatching { VoteReceipt.fromJson(it) }.getOrNull() }
+        activePolls.values.forEach { poll ->
+            voteEndpointIdsByPoll.putIfAbsent(poll.id, linkedMapOf())
+            if (!sharedResultPollIds.contains(poll.id)) {
+                scheduleResultShare(poll)
+            }
+        }
+        seenIncomingPollIds += incomingPolls.keys
+        seenResultPollIds += sharedResultsByPoll.keys
+    }
+
+    private fun serializePolls(polls: Map<String, NearbyPoll>): JSONObject {
+        return JSONObject().apply {
+            polls.forEach { (pollId, poll) ->
+                put(pollId, JSONObject().put("proposerId", poll.proposerId).put("payload", poll.toPayloadJson()))
+            }
+        }
+    }
+
+    private fun restorePolls(raw: JSONObject?, target: LinkedHashMap<String, NearbyPoll>) {
+        if (raw == null) return
+        raw.keys().forEach { pollId ->
+            val stored = raw.optJSONObject(pollId) ?: return@forEach
+            val poll = runCatching {
+                NearbyPoll.fromPayload(stored.getString("proposerId"), stored.getString("payload"))
+            }.getOrNull() ?: return@forEach
+            if (!poll.hasEnded() || target === activePolls) {
+                target[poll.id] = poll
+            }
+        }
+    }
+
+    private fun serializeNestedStrings(values: Map<String, LinkedHashMap<String, String>>): JSONObject {
+        return JSONObject().apply { values.forEach { (key, map) -> put(key, JSONObject(map as Map<*, *>)) } }
+    }
+
+    private fun serializeNestedInts(values: Map<String, LinkedHashMap<String, Int>>): JSONObject {
+        return JSONObject().apply { values.forEach { (key, map) -> put(key, JSONObject(map as Map<*, *>)) } }
+    }
+
+    private fun restoreNestedStrings(raw: JSONObject?, target: LinkedHashMap<String, LinkedHashMap<String, String>>) {
+        if (raw == null) return
+        raw.keys().forEach { key -> target[key] = LinkedHashMap(readStringMap(raw.optJSONObject(key))) }
+    }
+
+    private fun restoreNestedInts(raw: JSONObject?, target: LinkedHashMap<String, LinkedHashMap<String, Int>>) {
+        if (raw == null) return
+        raw.keys().forEach { key ->
+            val source = raw.optJSONObject(key) ?: return@forEach
+            target[key] = linkedMapOf<String, Int>().apply {
+                source.keys().forEach { nestedKey -> put(nestedKey, source.optInt(nestedKey)) }
+            }
+        }
+    }
+
+    private fun readStringMap(raw: JSONObject?): Map<String, String> {
+        if (raw == null) return emptyMap()
+        return raw.keys().asSequence().associateWith { key -> raw.optString(key) }
+    }
+
+    private fun readStringSet(raw: JSONArray?): Set<String> {
+        if (raw == null) return emptySet()
+        return (0 until raw.length()).map { index -> raw.getString(index) }.toSet()
+    }
+
     private fun saveIdentity(nextIdentity: String, avatarId: Int) {
         store.saveIdentity(nextIdentity)
         store.saveAvatarId(avatarId)
         selfName = nextIdentity
         selfAvatarId = avatarId
-        resetSessionForIdentity()
+        reconnectForIdentityUpdate()
     }
 
-    private fun resetSessionForIdentity() {
-        handler.removeCallbacksAndMessages(null)
+    private fun reconnectForIdentityUpdate() {
+        handler.removeCallbacks(nearbyHeartbeat)
+        handler.removeCallbacks(nearbyPulse)
         nearby.stop()
         nearby = NearbyVoteConnectionManager(this, selfName, this)
         simulator = LocalVoteSimulator(selfName)
         connectedCount = 0
-        activePolls.clear()
-        incomingPolls.clear()
-        latestReceipt = null
-        sharedResult = null
-        sharedResultsByPoll.clear()
-        receivedVotesByPoll.clear()
-        receivedVoteNamesByPoll.clear()
-        receivedVoteAvatarsByPoll.clear()
-        submittedVotes.clear()
-        acceptedPollIds.clear()
-        declinedPollIds.clear()
-        sharedResultPollIds.clear()
-        seenIncomingPollIds.clear()
-        seenResultPollIds.clear()
+        activePolls.replaceAll { _, poll -> poll.copy(proposerName = selfName, proposerAvatarId = selfAvatarId) }
+        persistSessionState()
         applyAutoConnectSetting()
     }
 
@@ -2410,10 +2552,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return if (avatarId in 0 until AVATAR_COUNT) avatarId else avatarIdForUser(id)
     }
 
-    private fun publishPoll(question: String, options: List<String>, durationSeconds: Int, allowParticipantOptions: Boolean) {
+    private fun publishPoll(question: String, options: List<String>, durationSeconds: Int, allowParticipantOptions: Boolean, revealSelections: Boolean) {
         val durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1)
         val poll = NearbyPoll(
-            id = "poll-${System.currentTimeMillis()}",
+            id = "poll-${UUID.randomUUID()}",
             proposerId = userId,
             proposerName = selfName,
             proposerAvatarId = selfAvatarId,
@@ -2422,18 +2564,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             durationMinutes = durationMinutes,
             durationSeconds = durationSeconds,
             endAtMillis = System.currentTimeMillis() + durationSeconds * 1_000L,
-            allowParticipantOptions = allowParticipantOptions
+            allowParticipantOptions = allowParticipantOptions,
+            revealSelections = revealSelections
         )
         activePolls[poll.id] = poll
         receivedVotesByPoll[poll.id] = linkedMapOf()
         receivedVoteNamesByPoll[poll.id] = linkedMapOf()
         receivedVoteAvatarsByPoll[poll.id] = linkedMapOf()
+        voteEndpointIdsByPoll[poll.id] = linkedMapOf()
         sharedResult = null
         sharedResultPollIds -= poll.id
         seenResultPollIds -= poll.id
         startNearbyConnectionTest()
         sendPoll(poll)
         scheduleResultShare(poll)
+        persistSessionState()
         showPublishedPoll(poll)
     }
 
@@ -2451,14 +2596,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             .show()
     }
 
-    private fun sendPoll(poll: NearbyPoll) {
-        nearby.sendToAll(
-            NearVoteMessage(
-                type = NearVoteMessageType.POLL,
-                senderId = userId,
-                payloadJson = poll.toPayloadJson()
-            ).toJson()
-        )
+    private fun sendPoll(poll: NearbyPoll, endpointId: String? = null) {
+        val message = NearVoteMessage(
+            type = NearVoteMessageType.POLL,
+            senderId = userId,
+            payloadJson = poll.toPayloadJson()
+        ).toJson()
+        if (endpointId == null) {
+            nearby.sendToAll(message)
+        } else {
+            nearby.sendTo(endpointId, message)
+        }
     }
 
     private fun normalizedOption(option: String): String {
@@ -2470,6 +2618,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val updatedPoll = poll.copy(options = poll.options + option)
         activePolls[poll.id] = updatedPoll
         sendPoll(updatedPoll)
+        persistSessionState()
         appendLog("참여자 선택지 추가: $option")
         return updatedPoll
     }
@@ -2524,9 +2673,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             receivedVoteNames[userId] = selfName
             receivedVoteAvatars[userId] = selfAvatarId
             saveLocalReceipt(updatedPoll, submittedOption)
+            persistSessionState()
             showPublishedPoll(updatedPoll)
         } else {
             submittedVotes[poll.id] = submittedOption
+            persistSessionState()
             showVoteSubmitted(poll, submittedOption)
         }
     }
@@ -2537,6 +2688,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             return
         }
         when (message.type) {
+            NearVoteMessageType.PROFILE -> {
+                val profile = runCatching { JSONObject(message.payloadJson) }.getOrElse { return }
+                val peerId = profile.optString("userId", message.senderId)
+                val peerName = profile.optString("name", peerId.take(8))
+                nearby.identifyPeer(endpointId, peerId, peerName)
+                syncCurrentSessionToPeer(endpointId, peerId)
+                updateConnectionStatus()
+            }
             NearVoteMessageType.POLL -> {
                 val poll = runCatching { NearbyPoll.fromPayload(message.senderId, message.payloadJson) }.getOrElse {
                     appendLog("투표 메시지를 읽지 못함")
@@ -2549,6 +2708,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 }
                 val alreadyKnown = !seenIncomingPollIds.add(poll.id)
                 incomingPolls[poll.id] = poll
+                persistSessionState()
                 if (alreadyKnown || submittedVotes.containsKey(poll.id)) {
                     appendLog("이미 받은 투표 갱신: ${poll.question}")
                     return
@@ -2566,6 +2726,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val voterAvatarId = payload.optInt("voterAvatarId", avatarIdForUser(voterId))
                 val option = normalizedOption(payload.optString("option"))
                 if (option.isBlank()) return
+                if (voterId != message.senderId) {
+                    appendLog("발신자와 다른 사용자 ID의 표는 무시함")
+                    return
+                }
+                nearby.identifyPeer(endpointId, voterId, voterName)
                 if (poll.hasEnded()) {
                     appendLog("종료된 투표의 표는 무시함: $voterId")
                     return
@@ -2586,7 +2751,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 receivedVotes[voterId] = option
                 receivedVoteNames[voterId] = voterName
                 receivedVoteAvatars[voterId] = voterAvatarId
+                voteEndpointIdsByPoll.getOrPut(poll.id) { linkedMapOf() }[voterId] = endpointId
                 sendReceipt(endpointId, poll, voterId, voterName, option)
+                persistSessionState()
                 runOnUiThread { showPublishedPoll(poll) }
             }
             NearVoteMessageType.RECEIPT -> {
@@ -2598,8 +2765,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     voteHash = payload.getString("voteHash")
                 )
                 if (receipt.voterId == userId) {
+                    val submitted = submittedVotes[receipt.pollId] ?: return
+                    if (receipt.voteHash != hash("${receipt.pollId}:$userId:$submitted")) {
+                        appendLog("유효하지 않은 영수증은 무시함")
+                        return
+                    }
                     latestReceipt = receipt
                     store.saveReceipt(receipt)
+                    persistSessionState()
                     incomingPolls[receipt.pollId]?.let { poll ->
                         runOnUiThread { showVoteSubmitted(poll, submittedVotes[receipt.pollId] ?: "선택 완료") }
                     }
@@ -2615,11 +2788,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     appendLog("거절한 투표의 결과는 무시함: ${result.question}")
                     return
                 }
+                if (!result.isHashValid()) {
+                    appendLog("무결성 확인에 실패한 결과는 저장하지 않음: ${result.question}")
+                    return
+                }
                 val alreadyKnown = !seenResultPollIds.add(result.pollId)
                 sharedResult = result
                 sharedResultsByPoll[result.pollId] = result
                 incomingPolls.remove(result.pollId)
                 store.saveResult(result)
+                persistSessionState()
                 if (alreadyKnown) {
                     appendLog("이미 받은 결과 블록 갱신: ${result.question}")
                     return
@@ -2639,6 +2817,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         )
         latestReceipt = receipt
         store.saveReceipt(receipt)
+    }
+
+    private fun sendProfile(endpointId: String) {
+        nearby.sendTo(
+            endpointId,
+            NearVoteMessage(
+                type = NearVoteMessageType.PROFILE,
+                senderId = userId,
+                payloadJson = JSONObject()
+                    .put("userId", userId)
+                    .put("name", selfName)
+                    .put("avatarId", selfAvatarId)
+                    .toString()
+            ).toJson()
+        )
     }
 
     private fun sendReceipt(endpointId: String, poll: NearbyPoll, voterId: String, voterName: String, option: String) {
@@ -2674,7 +2867,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val participantAvatarIds = participantIds.associateWith { id ->
             receivedVoteAvatars[id] ?: avatarIdForUser(id)
         }
-        val participantSelections = participantIds.associateWith { id -> receivedVotes.getValue(id) }
+        val participantSelections = if (poll.revealSelections) {
+            participantIds.associateWith { id -> receivedVotes.getValue(id) }
+        } else {
+            emptyMap()
+        }
         val result = SharedResult(
             pollId = poll.id,
             proposerId = userId,
@@ -2698,31 +2895,36 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 participantSelections = participantSelections
             ),
             durationSeconds = poll.durationSeconds,
-            allowParticipantOptions = poll.allowParticipantOptions
+            allowParticipantOptions = poll.allowParticipantOptions,
+            revealSelections = poll.revealSelections
         )
         sharedResult = result
         sharedResultsByPoll[poll.id] = result
         sharedResultPollIds += poll.id
         store.saveResult(result)
-        sendResultBlock(result)
+        persistSessionState()
+        val participantEndpoints = participantIds.mapNotNull { participantId ->
+            voteEndpointIdsByPoll[poll.id]?.get(participantId) ?: nearby.endpointForPeer(participantId)
+        }.distinct()
+        sendResultBlock(result, participantEndpoints)
         showSharedResult(result)
     }
 
     private fun endPollAndShareResult(poll: NearbyPoll) {
         val endedPoll = poll.copy(endAtMillis = System.currentTimeMillis())
         activePolls[poll.id] = endedPoll
+        persistSessionState()
         shareResultBlock(endedPoll)
     }
 
-    private fun sendResultBlock(result: SharedResult) {
+    private fun sendResultBlock(result: SharedResult, endpointIds: List<String>) {
         appendLog("결과 블록 전송")
-        nearby.sendToAll(
-            NearVoteMessage(
-                type = NearVoteMessageType.RESULT_BLOCK,
-                senderId = userId,
-                payloadJson = result.toPayloadJson()
-            ).toJson()
-        )
+        val message = NearVoteMessage(
+            type = NearVoteMessageType.RESULT_BLOCK,
+            senderId = userId,
+            payloadJson = result.toPayloadJson()
+        ).toJson()
+        endpointIds.forEach { endpointId -> nearby.sendTo(endpointId, message) }
     }
 
     private fun scheduleResultShare(poll: NearbyPoll) {

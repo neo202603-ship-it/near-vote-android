@@ -46,7 +46,8 @@ data class SharedResult(
     val createdAtMillis: Long,
     val resultHash: String,
     val durationSeconds: Int = 300,
-    val allowParticipantOptions: Boolean = false
+    val allowParticipantOptions: Boolean = false,
+    val revealSelections: Boolean = true
 ) {
     fun toPayloadJson(): String {
         val countJson = JSONObject()
@@ -67,6 +68,7 @@ data class SharedResult(
             .put("resultHash", resultHash)
             .put("durationSeconds", durationSeconds)
             .put("allowParticipantOptions", allowParticipantOptions)
+            .put("revealSelections", revealSelections)
             .toString()
     }
 
@@ -90,6 +92,7 @@ data class SharedResult(
             .put("resultHash", resultHash)
             .put("durationSeconds", durationSeconds)
             .put("allowParticipantOptions", allowParticipantOptions)
+            .put("revealSelections", revealSelections)
     }
 
     fun isHashValid(): Boolean = resultHash == computeHash(
@@ -185,7 +188,8 @@ data class SharedResult(
                 ),
                 resultHash = payload.getString("resultHash"),
                 durationSeconds = payload.optInt("durationSeconds", 300),
-                allowParticipantOptions = payload.optBoolean("allowParticipantOptions", false)
+                allowParticipantOptions = payload.optBoolean("allowParticipantOptions", false),
+                revealSelections = payload.optBoolean("revealSelections", true)
             )
         }
     }
@@ -201,7 +205,8 @@ data class NearbyPoll(
     val durationMinutes: Int,
     val durationSeconds: Int,
     val endAtMillis: Long,
-    val allowParticipantOptions: Boolean = false
+    val allowParticipantOptions: Boolean = false,
+    val revealSelections: Boolean = true
 ) {
     fun toPayloadJson(): String {
         return JSONObject()
@@ -214,6 +219,7 @@ data class NearbyPoll(
             .put("durationSeconds", durationSeconds)
             .put("endAtMillis", endAtMillis)
             .put("allowParticipantOptions", allowParticipantOptions)
+            .put("revealSelections", revealSelections)
             .toString()
     }
 
@@ -227,9 +233,9 @@ data class NearbyPoll(
 
     fun statusText(connectedCount: Int): String {
         return if (hasEnded()) {
-            "제한시간 종료 · 연결된 기기 ${connectedCount}대"
+            "제한시간 종료 · 연결된 상대 ${connectedCount}명"
         } else {
-            "${remainingText()} · 연결된 기기 ${connectedCount}대에 참여 요청을 보냈습니다."
+            "${remainingText()} · 연결된 상대 ${connectedCount}명에게 참여 요청을 보냈습니다."
         }
     }
 
@@ -257,7 +263,8 @@ data class NearbyPoll(
                         payload.optInt("durationMinutes", 5) * 60
                     ) * 1_000L
                 ),
-                allowParticipantOptions = payload.optBoolean("allowParticipantOptions", false)
+                allowParticipantOptions = payload.optBoolean("allowParticipantOptions", false),
+                revealSelections = payload.optBoolean("revealSelections", true)
             )
         }
     }
@@ -271,7 +278,8 @@ data class PollTemplate(
     val durationMinutes: Int,
     val durationSeconds: Int = durationMinutes * 60,
     val builtIn: Boolean = false,
-    val allowParticipantOptions: Boolean = false
+    val allowParticipantOptions: Boolean = false,
+    val revealSelections: Boolean = true
 ) {
     fun toJson(): JSONObject {
         return JSONObject()
@@ -283,6 +291,7 @@ data class PollTemplate(
             .put("durationSeconds", durationSeconds)
             .put("builtIn", builtIn)
             .put("allowParticipantOptions", allowParticipantOptions)
+            .put("revealSelections", revealSelections)
     }
 
     companion object {
@@ -298,7 +307,8 @@ data class PollTemplate(
                 durationMinutes = durationMinutes,
                 durationSeconds = json.optInt("durationSeconds", durationMinutes * 60),
                 builtIn = json.optBoolean("builtIn", false),
-                allowParticipantOptions = json.optBoolean("allowParticipantOptions", false)
+                allowParticipantOptions = json.optBoolean("allowParticipantOptions", false),
+                revealSelections = json.optBoolean("revealSelections", true)
             )
         }
     }
