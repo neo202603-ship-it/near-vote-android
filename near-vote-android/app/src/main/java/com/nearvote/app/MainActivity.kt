@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -163,7 +164,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showHome() {
         setPage("홈")
         rememberScreen { showHome() }
-        page.addView(breadcrumb("홈"))
         page.addView(header("근거리 투표", "주변 사람들과 투표를 하고 공유 합니다."))
         page.addView(identityCard())
         addCurrentSessionCards()
@@ -835,21 +835,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 0, 0, dp(18))
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                addView(TextView(context).apply {
-                    text = title
-                    textSize = 31f
-                    setTextColor(0xFF10251D.toInt())
-                    setTypeface(typeface, Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                })
-                addView(compactButton("투표 생성", BUTTON_PRIMARY) { showCompose() }.apply {
-                    layoutParams = LinearLayout.LayoutParams(dp(104), dp(42)).apply {
-                        leftMargin = dp(10)
-                    }
-                })
+            addView(TextView(context).apply {
+                text = title
+                textSize = 31f
+                setTextColor(0xFF10251D.toInt())
+                setTypeface(typeface, Typeface.BOLD)
             })
             addView(TextView(context).apply {
                 text = subtitle
@@ -1073,15 +1063,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun bottomMenu(selected: String): LinearLayout {
         val buttons = listOf(
-            menuItem("홈", "⌂", selected == "홈") { showHome() },
-            menuItem("투표", "+", selected == "투표") { showCompose() },
-            menuItem("결과", "▤", selected == "결과") { showHistory() },
-            menuItem("설정", "⚙", selected == "설정") { showSettings() }
+            menuItem("홈", NavigationIcon.HOME, selected == "홈") { showHome() },
+            menuItem("투표", NavigationIcon.CREATE, selected == "투표") { showCompose() },
+            menuItem("결과", NavigationIcon.RESULTS, selected == "결과") { showHistory() },
+            menuItem("설정", NavigationIcon.SETTINGS, selected == "설정") { showSettings() }
         )
         return LinearLayout(this).apply {
             val sidePadding = dp(12)
-            val topPadding = dp(8)
-            val baseBottomPadding = dp(12)
+            val topPadding = dp(5)
+            val baseBottomPadding = dp(8)
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(sidePadding, topPadding, sidePadding, baseBottomPadding + systemNavigationBottomInset())
@@ -1092,15 +1082,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             )
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(0, dp(58), 1f).apply {
-                    rightMargin = dp(8)
+                layoutParams = LinearLayout.LayoutParams(0, dp(67), 1f).apply {
+                    rightMargin = dp(6)
                 }
-                buttons.forEachIndexed { index, button ->
-                    button.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
-                        if (index < buttons.lastIndex) {
-                            rightMargin = dp(8)
-                        }
-                    }
+                buttons.forEach { button ->
+                    button.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
                     addView(button)
                 }
             })
@@ -1114,18 +1100,28 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun menuItem(label: String, icon: String, selected: Boolean, onClick: () -> Unit): TextView {
-        return TextView(this).apply {
-            text = "$icon\n$label"
-            gravity = Gravity.CENTER
-            textSize = 12f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF526158.toInt())
-            background = if (selected) {
-                rounded(0xFF176B4D.toInt(), 14)
-            } else {
-                rounded(0xFFE9EEE9.toInt(), 14)
-            }
+    private fun menuItem(label: String, icon: NavigationIcon, selected: Boolean, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(View(context).apply {
+                background = rounded(if (selected) 0xFF176B4D.toInt() else 0x00000000, 2)
+                layoutParams = LinearLayout.LayoutParams(dp(34), dp(3)).apply {
+                    bottomMargin = dp(5)
+                }
+            })
+            addView(NavigationThumbnailView(icon, selected).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(34), dp(32)).apply {
+                    bottomMargin = dp(3)
+                }
+            })
+            addView(TextView(context).apply {
+                text = label
+                gravity = Gravity.CENTER
+                textSize = 12f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(if (selected) 0xFF176B4D.toInt() else 0xFF617168.toInt())
+            })
             setOnClickListener { onClick() }
         }
     }
@@ -2521,6 +2517,78 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun hash(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private enum class NavigationIcon {
+        HOME,
+        CREATE,
+        RESULTS,
+        SETTINGS
+    }
+
+    private inner class NavigationThumbnailView(
+        private val icon: NavigationIcon,
+        private val selected: Boolean
+    ) : View(this) {
+        private val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (selected) 0xFFE5F2EB.toInt() else 0xFFF0F3F0.toInt()
+            style = Paint.Style.FILL
+        }
+        private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (selected) 0xFF176B4D.toInt() else 0xFF526158.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2).toFloat()
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val sx = width / 34f
+            val sy = height / 32f
+            fun x(value: Float) = value * sx
+            fun y(value: Float) = value * sy
+
+            canvas.drawRoundRect(
+                RectF(x(2f), y(1f), x(32f), y(31f)),
+                dp(9).toFloat(),
+                dp(9).toFloat(),
+                tilePaint
+            )
+            when (icon) {
+                NavigationIcon.HOME -> {
+                    val roof = Path().apply {
+                        moveTo(x(9f), y(16f))
+                        lineTo(x(17f), y(9f))
+                        lineTo(x(25f), y(16f))
+                    }
+                    canvas.drawPath(roof, iconPaint)
+                    canvas.drawLine(x(11f), y(15f), x(11f), y(23f), iconPaint)
+                    canvas.drawLine(x(23f), y(15f), x(23f), y(23f), iconPaint)
+                    canvas.drawLine(x(11f), y(23f), x(23f), y(23f), iconPaint)
+                    canvas.drawLine(x(17f), y(19f), x(17f), y(23f), iconPaint)
+                }
+                NavigationIcon.CREATE -> {
+                    canvas.drawRoundRect(RectF(x(10f), y(7f), x(24f), y(25f)), x(2f), y(2f), iconPaint)
+                    canvas.drawLine(x(17f), y(12f), x(17f), y(20f), iconPaint)
+                    canvas.drawLine(x(13f), y(16f), x(21f), y(16f), iconPaint)
+                }
+                NavigationIcon.RESULTS -> {
+                    canvas.drawLine(x(10f), y(23f), x(25f), y(23f), iconPaint)
+                    canvas.drawLine(x(12f), y(23f), x(12f), y(17f), iconPaint)
+                    canvas.drawLine(x(17f), y(23f), x(17f), y(11f), iconPaint)
+                    canvas.drawLine(x(22f), y(23f), x(22f), y(14f), iconPaint)
+                }
+                NavigationIcon.SETTINGS -> {
+                    canvas.drawLine(x(10f), y(12f), x(24f), y(12f), iconPaint)
+                    canvas.drawLine(x(10f), y(20f), x(24f), y(20f), iconPaint)
+                    canvas.drawCircle(x(15f), y(12f), x(2f), tilePaint)
+                    canvas.drawCircle(x(15f), y(12f), x(2f), iconPaint)
+                    canvas.drawCircle(x(20f), y(20f), x(2f), tilePaint)
+                    canvas.drawCircle(x(20f), y(20f), x(2f), iconPaint)
+                }
+            }
+        }
     }
 
     private inner class CountdownRingView(
