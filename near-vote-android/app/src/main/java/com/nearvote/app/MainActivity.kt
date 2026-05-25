@@ -725,31 +725,30 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 layoutParams = blockParams()
             })
         }
-        page.addView(label("다시 사용"))
-        page.addView(resultMedalActions(result))
+        page.addView(resultActions(result))
         page.addView(verificationBarcodePanel(
             result = result,
             receipt = latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId)
         ))
     }
 
-    private fun resultMedalActions(result: SharedResult): LinearLayout {
+    private fun resultActions(result: SharedResult): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             layoutParams = blockParams()
-            addView(medalActionButton("재투표", MedalAction.REVOTE, 0xFF176B4D.toInt()) {
+            addView(resultIconButton("재시도", ResultAction.REVOTE, 0xFF176B4D.toInt()) {
                 showCompose(resultAsTemplate(result, "draft-result-${System.currentTimeMillis()}"))
             }.apply {
-                layoutParams = LinearLayout.LayoutParams(0, dp(112), 1f).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(62), 1f).apply {
                     rightMargin = dp(8)
                 }
             })
-            addView(medalActionButton("템플릿 저장", MedalAction.SAVE_TEMPLATE, 0xFFB37A19.toInt()) {
+            addView(resultIconButton("템플릿 저장", ResultAction.SAVE_TEMPLATE, 0xFFB37A19.toInt()) {
                 store.saveTemplate(resultAsTemplate(result, "template-${System.currentTimeMillis()}"))
                 Toast.makeText(this@MainActivity, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
             }.apply {
-                layoutParams = LinearLayout.LayoutParams(0, dp(112), 1f).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(62), 1f).apply {
                     leftMargin = dp(8)
                 }
             })
@@ -1180,15 +1179,19 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
-    private fun medalActionButton(label: String, icon: MedalAction, tint: Int, onClick: () -> Unit): LinearLayout {
+    private fun resultIconButton(label: String, icon: ResultAction, tint: Int, onClick: () -> Unit): LinearLayout {
         return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+            background = rounded(0xFFFFFFFF.toInt(), 16, 0xFFD8E2DA.toInt())
             isClickable = true
             isFocusable = true
             contentDescription = label
-            addView(MedalBadgeView(icon, tint).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(68), dp(72))
+            addView(ResultActionIconView(icon, tint).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply {
+                    rightMargin = dp(9)
+                }
             })
             addView(TextView(context).apply {
                 text = label
@@ -2612,27 +2615,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         SETTINGS
     }
 
-    private enum class MedalAction {
+    private enum class ResultAction {
         REVOTE,
         SAVE_TEMPLATE
     }
 
-    private inner class MedalBadgeView(
-        private val action: MedalAction,
+    private inner class ResultActionIconView(
+        private val action: ResultAction,
         private val tint: Int
     ) : View(this) {
-        private val ribbonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = tint
-            style = Paint.Style.FILL
-        }
-        private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x1C10251D
-            style = Paint.Style.FILL
-        }
-        private val medalPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = tint
-            style = Paint.Style.FILL
-        }
         private val innerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFFFF8E4.toInt()
             style = Paint.Style.FILL
@@ -2647,55 +2638,35 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            val sx = width / 68f
-            val sy = height / 72f
+            val sx = width / 38f
+            val sy = height / 38f
             fun x(value: Float) = value * sx
             fun y(value: Float) = value * sy
 
-            val leftRibbon = Path().apply {
-                moveTo(x(21f), y(39f))
-                lineTo(x(12f), y(67f))
-                lineTo(x(24f), y(60f))
-                lineTo(x(31f), y(68f))
-                lineTo(x(34f), y(42f))
-                close()
-            }
-            val rightRibbon = Path().apply {
-                moveTo(x(34f), y(42f))
-                lineTo(x(37f), y(68f))
-                lineTo(x(44f), y(60f))
-                lineTo(x(56f), y(67f))
-                lineTo(x(47f), y(39f))
-                close()
-            }
-            canvas.drawPath(leftRibbon, ribbonPaint)
-            canvas.drawPath(rightRibbon, ribbonPaint)
-            canvas.drawCircle(x(34f), y(28f), x(23f), shadowPaint)
-            canvas.drawCircle(x(34f), y(26f), x(23f), medalPaint)
-            canvas.drawCircle(x(34f), y(26f), x(17f), innerPaint)
+            canvas.drawCircle(x(19f), y(19f), x(18f), innerPaint)
 
             when (action) {
-                MedalAction.REVOTE -> {
+                ResultAction.REVOTE -> {
                     val arrow = Path().apply {
-                        moveTo(x(38f), y(18f))
-                        cubicTo(x(29f), y(15f), x(24f), y(21f), x(25f), y(27f))
-                        cubicTo(x(26f), y(34f), x(34f), y(37f), x(40f), y(33f))
+                        moveTo(x(23f), y(12f))
+                        cubicTo(x(14f), y(9f), x(9f), y(15f), x(10f), y(21f))
+                        cubicTo(x(11f), y(28f), x(19f), y(31f), x(25f), y(27f))
                     }
                     canvas.drawPath(arrow, iconPaint)
                     val head = Path().apply {
-                        moveTo(x(37f), y(17f))
-                        lineTo(x(42f), y(19f))
-                        lineTo(x(38f), y(23f))
+                        moveTo(x(22f), y(11f))
+                        lineTo(x(27f), y(13f))
+                        lineTo(x(23f), y(17f))
                     }
                     canvas.drawPath(head, iconPaint)
                 }
-                MedalAction.SAVE_TEMPLATE -> {
+                ResultAction.SAVE_TEMPLATE -> {
                     val bookmark = Path().apply {
-                        moveTo(x(28f), y(16f))
-                        lineTo(x(40f), y(16f))
-                        lineTo(x(40f), y(36f))
-                        lineTo(x(34f), y(31f))
-                        lineTo(x(28f), y(36f))
+                        moveTo(x(13f), y(9f))
+                        lineTo(x(25f), y(9f))
+                        lineTo(x(25f), y(29f))
+                        lineTo(x(19f), y(24f))
+                        lineTo(x(13f), y(29f))
                         close()
                     }
                     canvas.drawPath(bookmark, iconPaint)
