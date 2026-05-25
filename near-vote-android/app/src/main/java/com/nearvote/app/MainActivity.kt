@@ -295,7 +295,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(topBar("투표 만들기"))
         page.addView(bodyText("질문과 선택지를 입력하고 주변 사람에게 바로 게시합니다."))
 
-        val selectedTemplate = template ?: store.loadTemplates().first()
+        val selectedTemplate = template ?: emptyComposeDraft()
         val questionInput = inputBox("질문", selectedTemplate.question)
         val optionEditor = OptionTagEditor(selectedTemplate.options)
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
@@ -375,8 +375,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun showTemplatePicker(
-        currentQuestion: String = "점심메뉴는?",
-        currentOptions: String = "한식\n분식\n샐러드",
+        currentQuestion: String = "",
+        currentOptions: String = "",
         currentDuration: String = "300"
     ) {
         setPage("투표")
@@ -392,13 +392,24 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 PollTemplate(
                     id = "draft",
                     title = currentQuestion.ifBlank { "새 투표" },
-                    question = currentQuestion.ifBlank { "점심메뉴는?" },
-                    options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("한식", "분식", "샐러드") },
+                    question = currentQuestion,
+                    options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() },
                     durationMinutes = ((currentDuration.toIntOrNull() ?: 300) + 59) / 60,
                     durationSeconds = currentDuration.toIntOrNull() ?: 300
                 )
             )
         })
+    }
+
+    private fun emptyComposeDraft(): PollTemplate {
+        return PollTemplate(
+            id = "draft",
+            title = "새 투표",
+            question = "",
+            options = emptyList(),
+            durationMinutes = 5,
+            durationSeconds = 300
+        )
     }
 
     private fun buildTemplateFromInputs(
