@@ -286,18 +286,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val optionEditor = OptionTagEditor(selectedTemplate.options)
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
         val hasCustomDuration = !isPresetDuration(selectedTemplate.durationSeconds)
+        val extendedDurationChoices = extendedDurationChoices()
+        val initialExtendedDurationIndex = closestDurationChoiceIndex(extendedDurationChoices, selectedTemplate.durationSeconds)
         val durationWheel = NumberPicker(this).apply {
-            minValue = CUSTOM_DURATION_MIN_SECONDS
-            maxValue = CUSTOM_DURATION_MAX_SECONDS
-            value = selectedTemplate.durationSeconds.coerceIn(minValue, maxValue)
-            wrapSelectorWheel = true
-            setFormatter { seconds -> "${seconds}초" }
-            setOnValueChangedListener { _, _, seconds ->
-                durationInput.setText(seconds.toString())
+            minValue = 0
+            maxValue = extendedDurationChoices.lastIndex
+            displayedValues = extendedDurationChoices.map { it.second }.toTypedArray()
+            value = initialExtendedDurationIndex
+            wrapSelectorWheel = false
+            setOnValueChangedListener { _, _, index ->
+                durationInput.setText(extendedDurationChoices[index].first.toString())
             }
         }
         if (hasCustomDuration) {
-            durationInput.setText(durationWheel.value.toString())
+            durationInput.setText(extendedDurationChoices[initialExtendedDurationIndex].first.toString())
         }
         val customDurationPanel = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -323,7 +325,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             durationInput = durationInput,
             onPresetSelected = { customDurationPanel.visibility = View.GONE },
             onCustomSelected = {
-                durationInput.setText(durationWheel.value.toString())
+                durationInput.setText(extendedDurationChoices[durationWheel.value].first.toString())
                 customDurationPanel.visibility = View.VISIBLE
             }
         ))
@@ -342,7 +344,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 return@primaryButton
             }
             val publish = {
-                publishPoll(question, options, durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, 3_600))
+                publishPoll(question, options, durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS))
             }
             if (connectedCount == 0) {
                 confirmPublishingWithoutPeers(publish)
@@ -399,13 +401,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
             return null
         }
-        val durationSeconds = (durationInput.text.toString().toIntOrNull() ?: 300).coerceIn(CUSTOM_DURATION_MIN_SECONDS, 3_600)
+        val durationSeconds = (durationInput.text.toString().toIntOrNull() ?: 300)
+            .coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS)
         return PollTemplate(
             id = "template-${System.currentTimeMillis()}",
             title = question,
             question = question,
             options = options,
-            durationMinutes = ((durationSeconds + 59) / 60).coerceIn(1, 60),
+            durationMinutes = ((durationSeconds + 59) / 60).coerceIn(1, CUSTOM_DURATION_MAX_SECONDS / 60),
             durationSeconds = durationSeconds
         )
     }
@@ -1722,6 +1725,24 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return durationSeconds in listOf(30, 60, 300, 600, 900, 1800)
     }
 
+    private fun extendedDurationChoices(): List<Pair<Int, String>> {
+        val choices = mutableListOf<Pair<Int, String>>()
+        (10..50 step 10).forEach { seconds -> choices += seconds to "${seconds}초" }
+        (1..10).forEach { minutes -> choices += minutes * 60 to "${minutes}분" }
+        (20..50 step 10).forEach { minutes -> choices += minutes * 60 to "${minutes}분" }
+        (60..480 step 30).forEach { minutes ->
+            val hours = minutes / 60
+            val remainingMinutes = minutes % 60
+            val label = if (remainingMinutes == 0) "${hours}시간" else "${hours}시간 ${remainingMinutes}분"
+            choices += minutes * 60 to label
+        }
+        return choices
+    }
+
+    private fun closestDurationChoiceIndex(choices: List<Pair<Int, String>>, durationSeconds: Int): Int {
+        return choices.indices.minByOrNull { index -> abs(choices[index].first - durationSeconds) } ?: 0
+    }
+
     private fun sectionTitle(text: String): TextView {
         return TextView(this).apply {
             this.text = text
@@ -2593,7 +2614,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         private const val AVATAR_COUNT = AVATAR_COLUMN_COUNT * AVATAR_ROW_COUNT
         private const val AVATAR_CARD_SIZE = 56
         private const val CUSTOM_DURATION_MIN_SECONDS = 10
-        private const val CUSTOM_DURATION_MAX_SECONDS = 360
+        private const val CUSTOM_DURATION_MAX_SECONDS = 8 * 60 * 60
         private const val BUTTON_PRIMARY = 1
         private const val BUTTON_OUTLINE = 2
         private const val BUTTON_QUIET = 3
