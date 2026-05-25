@@ -2692,6 +2692,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 val profile = runCatching { JSONObject(message.payloadJson) }.getOrElse { return }
                 val peerId = profile.optString("userId", message.senderId)
                 val peerName = profile.optString("name", peerId.take(8))
+                if (peerId != message.senderId) {
+                    appendLog("발신자와 다른 사용자 ID의 프로필은 무시함")
+                    return
+                }
                 nearby.identifyPeer(endpointId, peerId, peerName)
                 syncCurrentSessionToPeer(endpointId, peerId)
                 updateConnectionStatus()

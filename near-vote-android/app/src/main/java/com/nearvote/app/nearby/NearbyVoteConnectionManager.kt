@@ -67,7 +67,6 @@ class NearbyVoteConnectionManager(
                 connectedEndpoints += endpointId
                 listener.onEndpointConnected(endpointId)
                 listener.onLog("연결 완료: ${endpointNames[endpointId] ?: endpointId}")
-                notifyConnectionCount()
             } else {
                 listener.onLog("연결 실패: ${endpointNames[endpointId] ?: endpointId} (${result.status.statusCode})")
             }
@@ -75,6 +74,8 @@ class NearbyVoteConnectionManager(
 
         override fun onDisconnected(endpointId: String) {
             connectedEndpoints -= endpointId
+            peerIds.remove(endpointId)
+            peerDisplayNames.remove(endpointId)
             listener.onEndpointDisconnected(endpointId)
             notifyConnectionCount()
             listener.onLog("연결 해제: ${endpointNames[endpointId] ?: endpointId}")
@@ -166,7 +167,7 @@ class NearbyVoteConnectionManager(
     }
 
     fun connectedPeerNames(): List<String> {
-        return activeEndpoints().map { endpointId ->
+        return verifiedEndpoints().map { endpointId ->
             peerDisplayNames[endpointId] ?: endpointNames[endpointId] ?: endpointId
         }
     }
@@ -179,11 +180,11 @@ class NearbyVoteConnectionManager(
     }
 
     fun endpointForPeer(peerId: String): String? {
-        return activeEndpoints().firstOrNull { endpointId -> peerIds[endpointId] == peerId }
+        return verifiedEndpoints().firstOrNull { endpointId -> peerIds[endpointId] == peerId }
     }
 
     fun sendToAll(message: String) {
-        val endpoints = activeEndpoints()
+        val endpoints = verifiedEndpoints()
         if (endpoints.isEmpty()) {
             listener.onLog("전송할 연결 기기가 없음")
             return
@@ -224,6 +225,12 @@ class NearbyVoteConnectionManager(
         return connectedEndpoints.distinctBy { endpointId -> peerIds[endpointId] ?: endpointId }
     }
 
+    private fun verifiedEndpoints(): List<String> {
+        return connectedEndpoints
+            .filter { endpointId -> peerIds.containsKey(endpointId) }
+            .distinctBy { endpointId -> peerIds.getValue(endpointId) }
+    }
+
     private fun connectionSlotsUsed(): Int {
         return activeEndpoints().size + pendingEndpoints.size
     }
@@ -241,7 +248,7 @@ class NearbyVoteConnectionManager(
     }
 
     private fun notifyConnectionCount() {
-        listener.onConnectionCountChanged(activeEndpoints().size)
+        listener.onConnectionCountChanged(verifiedEndpoints().size)
     }
 
     companion object {
