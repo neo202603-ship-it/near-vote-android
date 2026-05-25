@@ -56,6 +56,8 @@ import kotlin.math.abs
 
 class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var page: LinearLayout
+    private var pageScrollView: ScrollView? = null
+    private var keyboardLiftTarget: View? = null
     private lateinit var logView: TextView
     private lateinit var connectionStatusView: TextView
     private var topConnectionBadgeContainerView: FrameLayout? = null
@@ -809,12 +811,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             setOnFocusChangeListener { view, hasFocus ->
                 if (hasFocus) {
-                    view.postDelayed({
-                        view.requestRectangleOnScreen(
-                            Rect(0, 0, view.width, view.height + dp(104)),
-                            true
-                        )
-                    }, KEYBOARD_SCROLL_DELAY_MS)
+                    keyboardLiftTarget = view
+                    view.postDelayed({ liftParticipantOptionInput() }, KEYBOARD_SCROLL_DELAY_MS)
+                } else if (keyboardLiftTarget === view) {
+                    keyboardLiftTarget = null
                 }
             }
         }
@@ -920,6 +920,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         compactTitleBarView = null
         compactTitleTextView = null
         expandedTitleView = null
+        keyboardLiftTarget = null
         val scroll = ScrollView(this).apply {
             setBackgroundColor(0xFFF4F6F1.toInt())
             clipToPadding = false
@@ -932,6 +933,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 updateCompactTitleBar(scrollY)
             }
         }
+        pageScrollView = scroll
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pageSidePadding, pageBaseTopPadding + systemStatusTopInset(), pageSidePadding, pageBottomPadding)
@@ -948,7 +950,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
                 val statusTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
                 val keyboardBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-                val keyboardScrollSpace = if (keyboardBottom > 0) dp(112) else 0
+                val keyboardScrollSpace = if (keyboardBottom > 0) keyboardBottom + dp(24) else 0
                 page.setPadding(
                     pageSidePadding,
                     pageBaseTopPadding + statusTop,
@@ -956,12 +958,23 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     pageBottomPadding + keyboardScrollSpace
                 )
                 compactTitleBarView?.setPadding(dp(18), dp(12) + statusTop, dp(18), dp(12))
+                if (keyboardBottom > 0 && keyboardLiftTarget?.hasFocus() == true) {
+                    scroll.post { liftParticipantOptionInput() }
+                }
                 insets
             }
             post { ViewCompat.requestApplyInsets(this) }
         })
         root.addView(bottomMenu(selectedMenu))
         setContentView(root)
+    }
+
+    private fun liftParticipantOptionInput() {
+        val target = keyboardLiftTarget?.takeIf { it.hasFocus() } ?: return
+        pageScrollView?.let { scroll ->
+            target.requestRectangleOnScreen(Rect(0, 0, target.width, target.height + dp(24)), true)
+            scroll.smoothScrollTo(0, page.height)
+        }
     }
 
     private fun rememberScreen(renderer: () -> Unit) {
