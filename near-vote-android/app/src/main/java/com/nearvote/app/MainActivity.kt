@@ -2465,11 +2465,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
         }
-        private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF647268.toInt()
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.DEFAULT_BOLD
-        }
         private val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF10251D.toInt()
             textAlign = Paint.Align.CENTER
@@ -2481,7 +2476,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             val stroke = dp(if (compact) 5 else 8).toFloat()
             trackPaint.strokeWidth = stroke
             progressPaint.strokeWidth = stroke
-            titlePaint.textSize = dp(if (compact) 8 else 11).toFloat()
             timePaint.textSize = dp(if (compact) 11 else 17).toFloat()
 
             val size = width.coerceAtMost(height).toFloat()
@@ -2494,16 +2488,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
             progressPaint.color = if (isUrgent) 0xFFD33737.toInt() else 0xFF176B4D.toInt()
             timePaint.color = if (isUrgent) 0xFFC82424.toInt() else 0xFF10251D.toInt()
-            titlePaint.color = if (isUrgent) 0xFFD33737.toInt() else 0xFF647268.toInt()
 
             canvas.drawArc(bounds, -90f, 360f, false, trackPaint)
             canvas.drawArc(bounds, -90f, 360f * ratio, false, progressPaint)
-            if (compact) {
-                canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(4), timePaint)
-            } else {
-                canvas.drawText("남은", width / 2f, height / 2f - dp(8), titlePaint)
-                canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(15), timePaint)
-            }
+            canvas.drawText(formatRemaining(remainingMillis), width / 2f, height / 2f + dp(5), timePaint)
 
             if (remainingMillis > 0L) {
                 postInvalidateDelayed(1_000L)
