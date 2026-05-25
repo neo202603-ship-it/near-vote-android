@@ -67,10 +67,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private val handler = Handler(Looper.getMainLooper())
     private val nearbyHeartbeat = object : Runnable {
         override fun run() {
-            animateConnectionSearchPulse()
             nearby.maintainNearbyMode()
             updateConnectionStatus()
             handler.postDelayed(this, NEARBY_HEARTBEAT_MS)
+        }
+    }
+    private val nearbyPulse = object : Runnable {
+        override fun run() {
+            animateConnectionSearchPulse()
+            handler.postDelayed(this, NEARBY_PULSE_MS)
         }
     }
     private var selfName = ""
@@ -1895,10 +1900,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun startNearbyHeartbeat() {
         handler.removeCallbacks(nearbyHeartbeat)
+        handler.removeCallbacks(nearbyPulse)
         if (!autoConnectEnabled) return
         animateConnectionSearchPulse()
         nearby.maintainNearbyMode()
         handler.postDelayed(nearbyHeartbeat, NEARBY_HEARTBEAT_MS)
+        handler.postDelayed(nearbyPulse, NEARBY_PULSE_MS)
     }
 
     private fun applyAutoConnectSetting() {
@@ -1906,6 +1913,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             startNearbyHeartbeat()
         } else {
             handler.removeCallbacks(nearbyHeartbeat)
+            handler.removeCallbacks(nearbyPulse)
             nearby.stop()
             connectedCount = 0
             updateConnectionStatus()
@@ -2640,7 +2648,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     companion object {
-        private const val NEARBY_HEARTBEAT_MS = 30_000L
+        private const val NEARBY_HEARTBEAT_MS = 10_000L
+        private const val NEARBY_PULSE_MS = 30_000L
         private const val CONNECTION_SYNC_DELAY_MS = 500L
         private const val URGENT_COUNTDOWN_MS = 10_000L
         private const val AVATAR_COLUMN_COUNT = 5
