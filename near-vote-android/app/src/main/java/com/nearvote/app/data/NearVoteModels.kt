@@ -44,7 +44,8 @@ data class SharedResult(
     val participantSelections: Map<String, String>,
     val participantCount: Int,
     val createdAtMillis: Long,
-    val resultHash: String
+    val resultHash: String,
+    val durationSeconds: Int = 300
 ) {
     fun toPayloadJson(): String {
         val countJson = JSONObject()
@@ -63,6 +64,7 @@ data class SharedResult(
             .put("participantCount", participantCount)
             .put("createdAtMillis", createdAtMillis)
             .put("resultHash", resultHash)
+            .put("durationSeconds", durationSeconds)
             .toString()
     }
 
@@ -84,6 +86,7 @@ data class SharedResult(
             .put("participantCount", participantCount)
             .put("createdAtMillis", createdAtMillis)
             .put("resultHash", resultHash)
+            .put("durationSeconds", durationSeconds)
     }
 
     fun isHashValid(): Boolean = resultHash == computeHash(
@@ -177,7 +180,8 @@ data class SharedResult(
                     "createdAtMillis",
                     payload.optString("pollId").removePrefix("poll-").toLongOrNull() ?: System.currentTimeMillis()
                 ),
-                resultHash = payload.getString("resultHash")
+                resultHash = payload.getString("resultHash"),
+                durationSeconds = payload.optInt("durationSeconds", 300)
             )
         }
     }

@@ -725,10 +725,47 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 layoutParams = blockParams()
             })
         }
+        page.addView(label("다시 사용"))
+        page.addView(resultMedalActions(result))
         page.addView(verificationBarcodePanel(
             result = result,
             receipt = latestReceipt?.takeIf { it.pollId == result.pollId } ?: store.loadReceipt(result.pollId)
         ))
+    }
+
+    private fun resultMedalActions(result: SharedResult): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = blockParams()
+            addView(medalActionButton("재투표", MedalAction.REVOTE, 0xFF176B4D.toInt()) {
+                showCompose(resultAsTemplate(result, "draft-result-${System.currentTimeMillis()}"))
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(112), 1f).apply {
+                    rightMargin = dp(8)
+                }
+            })
+            addView(medalActionButton("템플릿 저장", MedalAction.SAVE_TEMPLATE, 0xFFB37A19.toInt()) {
+                store.saveTemplate(resultAsTemplate(result, "template-${System.currentTimeMillis()}"))
+                Toast.makeText(this@MainActivity, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(112), 1f).apply {
+                    leftMargin = dp(8)
+                }
+            })
+        }
+    }
+
+    private fun resultAsTemplate(result: SharedResult, id: String): PollTemplate {
+        val durationSeconds = result.durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS)
+        return PollTemplate(
+            id = id,
+            title = result.question,
+            question = result.question,
+            options = result.options,
+            durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1),
+            durationSeconds = durationSeconds
+        )
     }
 
     private fun showSimulationResult() {
@@ -1138,6 +1175,27 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 textSize = 12f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(if (selected) 0xFF176B4D.toInt() else 0xFF617168.toInt())
+            })
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun medalActionButton(label: String, icon: MedalAction, tint: Int, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            contentDescription = label
+            addView(MedalBadgeView(icon, tint).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(68), dp(72))
+            })
+            addView(TextView(context).apply {
+                text = label
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(0xFF23362D.toInt())
             })
             setOnClickListener { onClick() }
         }
@@ -2442,7 +2500,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 counts = counts,
                 participantIds = participantIds,
                 participantSelections = participantSelections
-            )
+            ),
+            durationSeconds = poll.durationSeconds
         )
         sharedResult = result
         sharedResultsByPoll[poll.id] = result
@@ -2551,6 +2610,98 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         CREATE,
         RESULTS,
         SETTINGS
+    }
+
+    private enum class MedalAction {
+        REVOTE,
+        SAVE_TEMPLATE
+    }
+
+    private inner class MedalBadgeView(
+        private val action: MedalAction,
+        private val tint: Int
+    ) : View(this) {
+        private val ribbonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tint
+            style = Paint.Style.FILL
+        }
+        private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x1C10251D
+            style = Paint.Style.FILL
+        }
+        private val medalPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tint
+            style = Paint.Style.FILL
+        }
+        private val innerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFF8E4.toInt()
+            style = Paint.Style.FILL
+        }
+        private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = tint
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2).toFloat()
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val sx = width / 68f
+            val sy = height / 72f
+            fun x(value: Float) = value * sx
+            fun y(value: Float) = value * sy
+
+            val leftRibbon = Path().apply {
+                moveTo(x(21f), y(39f))
+                lineTo(x(12f), y(67f))
+                lineTo(x(24f), y(60f))
+                lineTo(x(31f), y(68f))
+                lineTo(x(34f), y(42f))
+                close()
+            }
+            val rightRibbon = Path().apply {
+                moveTo(x(34f), y(42f))
+                lineTo(x(37f), y(68f))
+                lineTo(x(44f), y(60f))
+                lineTo(x(56f), y(67f))
+                lineTo(x(47f), y(39f))
+                close()
+            }
+            canvas.drawPath(leftRibbon, ribbonPaint)
+            canvas.drawPath(rightRibbon, ribbonPaint)
+            canvas.drawCircle(x(34f), y(28f), x(23f), shadowPaint)
+            canvas.drawCircle(x(34f), y(26f), x(23f), medalPaint)
+            canvas.drawCircle(x(34f), y(26f), x(17f), innerPaint)
+
+            when (action) {
+                MedalAction.REVOTE -> {
+                    val arrow = Path().apply {
+                        moveTo(x(38f), y(18f))
+                        cubicTo(x(29f), y(15f), x(24f), y(21f), x(25f), y(27f))
+                        cubicTo(x(26f), y(34f), x(34f), y(37f), x(40f), y(33f))
+                    }
+                    canvas.drawPath(arrow, iconPaint)
+                    val head = Path().apply {
+                        moveTo(x(37f), y(17f))
+                        lineTo(x(42f), y(19f))
+                        lineTo(x(38f), y(23f))
+                    }
+                    canvas.drawPath(head, iconPaint)
+                }
+                MedalAction.SAVE_TEMPLATE -> {
+                    val bookmark = Path().apply {
+                        moveTo(x(28f), y(16f))
+                        lineTo(x(40f), y(16f))
+                        lineTo(x(40f), y(36f))
+                        lineTo(x(34f), y(31f))
+                        lineTo(x(28f), y(36f))
+                        close()
+                    }
+                    canvas.drawPath(bookmark, iconPaint)
+                }
+            }
+        }
     }
 
     private inner class NavigationThumbnailView(
