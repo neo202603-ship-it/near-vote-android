@@ -824,7 +824,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             layoutParams = blockParams()
-            addView(resultIconButton("재시도", ResultAction.REVOTE, 0xFF176B4D.toInt()) {
+            addView(resultIconButton("재투표", ResultAction.REVOTE, 0xFF176B4D.toInt()) {
                 showCompose(resultAsTemplate(result, "draft-result-${System.currentTimeMillis()}"))
             }.apply {
                 layoutParams = LinearLayout.LayoutParams(0, dp(62), 1f).apply {
