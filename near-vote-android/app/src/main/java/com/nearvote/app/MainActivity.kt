@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private lateinit var logView: TextView
     private lateinit var connectionStatusView: TextView
     private var topConnectionBadgeContainerView: FrameLayout? = null
+    private var topConnectionBadgePulseView: View? = null
     private var topConnectionBadgeView: TextView? = null
     private var compactTitleBarView: LinearLayout? = null
     private var compactTitleTextView: TextView? = null
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private val handler = Handler(Looper.getMainLooper())
     private val nearbyHeartbeat = object : Runnable {
         override fun run() {
+            animateConnectionSearchPulse()
             nearby.maintainNearbyMode()
             updateConnectionStatus()
             handler.postDelayed(this, NEARBY_HEARTBEAT_MS)
@@ -134,6 +136,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     override fun onEndpointFound(endpointId: String, endpointName: String) {
+        animateConnectionSearchPulse()
         appendLog("발견: $endpointName ($endpointId)")
     }
 
@@ -1124,23 +1127,32 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun topConnectionBadge(): FrameLayout {
         return FrameLayout(this).apply {
-            background = rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
-            layoutParams = LinearLayout.LayoutParams(dp(44), dp(38))
-            clipChildren = true
+            layoutParams = LinearLayout.LayoutParams(dp(52), dp(46))
+            clipChildren = false
             setOnClickListener { showConnectionPopup() }
-            addView(TextView(context).apply {
-                text = topConnectionBadgeText()
-                textSize = 15f
-                gravity = Gravity.CENTER
-                setTypeface(typeface, Typeface.BOLD)
-                setTextColor(connectionBadgeTextColor())
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                topConnectionBadgeView = this
+            addView(View(context).apply {
+                alpha = 0f
+                background = connectionPulseBackground()
+                layoutParams = FrameLayout.LayoutParams(dp(44), dp(38), Gravity.CENTER)
+                topConnectionBadgePulseView = this
             })
-            topConnectionBadgeContainerView = this
+            addView(FrameLayout(context).apply {
+                background = rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
+                layoutParams = FrameLayout.LayoutParams(dp(44), dp(38), Gravity.CENTER)
+                addView(TextView(context).apply {
+                    text = topConnectionBadgeText()
+                    textSize = 15f
+                    gravity = Gravity.CENTER
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(connectionBadgeTextColor())
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    topConnectionBadgeView = this
+                })
+                topConnectionBadgeContainerView = this
+            })
         }
     }
 
@@ -1884,6 +1896,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun startNearbyHeartbeat() {
         handler.removeCallbacks(nearbyHeartbeat)
         if (!autoConnectEnabled) return
+        animateConnectionSearchPulse()
         nearby.maintainNearbyMode()
         handler.postDelayed(nearbyHeartbeat, NEARBY_HEARTBEAT_MS)
     }
@@ -1915,6 +1928,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             topConnectionBadgeContainerView?.background =
                 rounded(connectionBadgeBackgroundColor(), 18, connectionBadgeStrokeColor(), 2)
+            topConnectionBadgePulseView?.let { pulse ->
+                pulse.background = connectionPulseBackground()
+                if (!autoConnectEnabled) {
+                    pulse.animate().cancel()
+                    pulse.alpha = 0f
+                }
+            }
             topConnectionBadgeView?.let { badge ->
                 val nextText = topConnectionBadgeText()
                 badge.setTextColor(connectionBadgeTextColor())
@@ -1926,6 +1946,25 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     badge.alpha = 1f
                     badge.text = nextText
                 }
+            }
+        }
+    }
+
+    private fun animateConnectionSearchPulse() {
+        if (!autoConnectEnabled) return
+        runOnUiThread {
+            topConnectionBadgePulseView?.let { pulse ->
+                pulse.animate().cancel()
+                pulse.background = connectionPulseBackground()
+                pulse.scaleX = 1f
+                pulse.scaleY = 1f
+                pulse.alpha = 0.72f
+                pulse.animate()
+                    .scaleX(1.18f)
+                    .scaleY(1.2f)
+                    .alpha(0f)
+                    .setDuration(900L)
+                    .start()
             }
         }
     }
@@ -1977,6 +2016,10 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             connectedCount == 0 -> 0xFFD76A6A.toInt()
             else -> 0xFF5B91D9.toInt()
         }
+    }
+
+    private fun connectionPulseBackground(): GradientDrawable {
+        return rounded(0x00000000, 18, connectionBadgeStrokeColor(), 2)
     }
 
     private fun connectionBadgeText(): String {
