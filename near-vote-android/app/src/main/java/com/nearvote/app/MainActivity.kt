@@ -1132,7 +1132,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun topConnectionBadge(): FrameLayout {
         return FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(52), dp(46))
+            layoutParams = LinearLayout.LayoutParams(dp(62), dp(54))
             clipChildren = false
             setOnClickListener { showConnectionPopup() }
             addView(View(context).apply {
@@ -1966,12 +1966,28 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 pulse.background = connectionPulseBackground()
                 pulse.scaleX = 1f
                 pulse.scaleY = 1f
-                pulse.alpha = 0.72f
+                pulse.alpha = 0.84f
                 pulse.animate()
-                    .scaleX(1.18f)
-                    .scaleY(1.2f)
-                    .alpha(0f)
-                    .setDuration(900L)
+                    .scaleX(1.34f)
+                    .scaleY(1.3f)
+                    .alpha(0.26f)
+                    .setDuration(500L)
+                    .withEndAction {
+                        pulse.animate()
+                            .scaleX(1.1f)
+                            .scaleY(1.08f)
+                            .alpha(0.7f)
+                            .setDuration(340L)
+                            .withEndAction {
+                                pulse.animate()
+                                    .scaleX(1.28f)
+                                    .scaleY(1.24f)
+                                    .alpha(0f)
+                                    .setDuration(420L)
+                                    .start()
+                            }
+                            .start()
+                    }
                     .start()
             }
         }
@@ -2027,7 +2043,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun connectionPulseBackground(): GradientDrawable {
-        return rounded(0x00000000, 18, connectionBadgeStrokeColor(), 2)
+        val fillColor = when {
+            !autoConnectEnabled -> 0x00000000
+            connectedCount == 0 -> 0x22D76A6A
+            else -> 0x225B91D9
+        }
+        return rounded(fillColor, 18, connectionBadgeStrokeColor(), 3)
     }
 
     private fun connectionBadgeText(): String {
