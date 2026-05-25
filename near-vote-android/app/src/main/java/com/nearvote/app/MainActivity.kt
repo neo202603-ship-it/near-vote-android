@@ -529,7 +529,11 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                         setTypeface(typeface, Typeface.BOLD)
                         layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     })
-                    addView(tagPill("${template.durationSeconds}초"))
+                    addView(TextView(context).apply {
+                        text = "제한시간 ${formatDurationText(template.durationSeconds)}"
+                        textSize = 13f
+                        setTextColor(0xFF66776E.toInt())
+                    })
                 })
                 addView(templateTagBar(template).apply {
                     layoutParams = LinearLayout.LayoutParams(
@@ -1814,6 +1818,20 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun isPresetDuration(durationSeconds: Int): Boolean {
         return durationSeconds in listOf(30, 60, 300, 600, 900, 1800)
+    }
+
+    private fun formatDurationText(durationSeconds: Int): String {
+        val seconds = durationSeconds.coerceAtLeast(0)
+        val hours = seconds / 3_600
+        val minutes = (seconds % 3_600) / 60
+        val remainingSeconds = seconds % 60
+        return when {
+            hours > 0 && minutes > 0 -> "${hours}시간 ${minutes}분"
+            hours > 0 -> "${hours}시간"
+            minutes > 0 && remainingSeconds > 0 -> "${minutes}분 ${remainingSeconds}초"
+            minutes > 0 -> "${minutes}분"
+            else -> "${remainingSeconds}초"
+        }
     }
 
     private fun extendedDurationChoices(): List<Pair<Int, String>> {
