@@ -45,7 +45,8 @@ data class SharedResult(
     val participantCount: Int,
     val createdAtMillis: Long,
     val resultHash: String,
-    val durationSeconds: Int = 300
+    val durationSeconds: Int = 300,
+    val allowParticipantOptions: Boolean = false
 ) {
     fun toPayloadJson(): String {
         val countJson = JSONObject()
@@ -65,6 +66,7 @@ data class SharedResult(
             .put("createdAtMillis", createdAtMillis)
             .put("resultHash", resultHash)
             .put("durationSeconds", durationSeconds)
+            .put("allowParticipantOptions", allowParticipantOptions)
             .toString()
     }
 
@@ -87,6 +89,7 @@ data class SharedResult(
             .put("createdAtMillis", createdAtMillis)
             .put("resultHash", resultHash)
             .put("durationSeconds", durationSeconds)
+            .put("allowParticipantOptions", allowParticipantOptions)
     }
 
     fun isHashValid(): Boolean = resultHash == computeHash(
@@ -181,7 +184,8 @@ data class SharedResult(
                     payload.optString("pollId").removePrefix("poll-").toLongOrNull() ?: System.currentTimeMillis()
                 ),
                 resultHash = payload.getString("resultHash"),
-                durationSeconds = payload.optInt("durationSeconds", 300)
+                durationSeconds = payload.optInt("durationSeconds", 300),
+                allowParticipantOptions = payload.optBoolean("allowParticipantOptions", false)
             )
         }
     }
@@ -196,7 +200,8 @@ data class NearbyPoll(
     val options: List<String>,
     val durationMinutes: Int,
     val durationSeconds: Int,
-    val endAtMillis: Long
+    val endAtMillis: Long,
+    val allowParticipantOptions: Boolean = false
 ) {
     fun toPayloadJson(): String {
         return JSONObject()
@@ -208,6 +213,7 @@ data class NearbyPoll(
             .put("durationMinutes", durationMinutes)
             .put("durationSeconds", durationSeconds)
             .put("endAtMillis", endAtMillis)
+            .put("allowParticipantOptions", allowParticipantOptions)
             .toString()
     }
 
@@ -250,7 +256,8 @@ data class NearbyPoll(
                         "durationSeconds",
                         payload.optInt("durationMinutes", 5) * 60
                     ) * 1_000L
-                )
+                ),
+                allowParticipantOptions = payload.optBoolean("allowParticipantOptions", false)
             )
         }
     }
@@ -263,7 +270,8 @@ data class PollTemplate(
     val options: List<String>,
     val durationMinutes: Int,
     val durationSeconds: Int = durationMinutes * 60,
-    val builtIn: Boolean = false
+    val builtIn: Boolean = false,
+    val allowParticipantOptions: Boolean = false
 ) {
     fun toJson(): JSONObject {
         return JSONObject()
@@ -274,6 +282,7 @@ data class PollTemplate(
             .put("durationMinutes", durationMinutes)
             .put("durationSeconds", durationSeconds)
             .put("builtIn", builtIn)
+            .put("allowParticipantOptions", allowParticipantOptions)
     }
 
     companion object {
@@ -288,7 +297,8 @@ data class PollTemplate(
                 options = options,
                 durationMinutes = durationMinutes,
                 durationSeconds = json.optInt("durationSeconds", durationMinutes * 60),
-                builtIn = json.optBoolean("builtIn", false)
+                builtIn = json.optBoolean("builtIn", false),
+                allowParticipantOptions = json.optBoolean("allowParticipantOptions", false)
             )
         }
     }

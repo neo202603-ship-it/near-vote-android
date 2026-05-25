@@ -22,6 +22,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -298,6 +299,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val selectedTemplate = template ?: emptyComposeDraft()
         val questionInput = inputBox("질문", selectedTemplate.question)
         val optionEditor = OptionTagEditor(selectedTemplate.options)
+        val allowParticipantOptionsInput = CheckBox(this).apply {
+            text = "참여자가 선택지 추가 가능"
+            textSize = 15f
+            setTextColor(0xFF23362D.toInt())
+            isChecked = selectedTemplate.allowParticipantOptions
+            buttonTintList = android.content.res.ColorStateList.valueOf(0xFF176B4D.toInt())
+            layoutParams = blockParams()
+        }
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
         val hasCustomDuration = !isPresetDuration(selectedTemplate.durationSeconds)
         val extendedDurationChoices = extendedDurationChoices()
@@ -327,13 +336,19 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
         page.addView(label("템플릿"))
         page.addView(outlineButton("템플릿 선택") {
-            showTemplatePicker(questionInput.text.toString(), optionEditor.values().joinToString("\n"), durationInput.text.toString())
+            showTemplatePicker(
+                questionInput.text.toString(),
+                optionEditor.values().joinToString("\n"),
+                durationInput.text.toString(),
+                allowParticipantOptionsInput.isChecked
+            )
         })
 
         page.addView(label("질문"))
         page.addView(questionInput)
         page.addView(label("선택지"))
         page.addView(optionEditor.view)
+        page.addView(allowParticipantOptionsInput)
         page.addView(label("제한시간"))
         page.addView(durationChoiceGrid(
             durationInput = durationInput,
@@ -358,7 +373,12 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 return@primaryButton
             }
             val publish = {
-                publishPoll(question, options, durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS))
+                publishPoll(
+                    question,
+                    options,
+                    durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS),
+                    allowParticipantOptionsInput.isChecked
+                )
             }
             if (connectedCount == 0) {
                 confirmPublishingWithoutPeers(publish)
@@ -367,7 +387,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
         }
         val saveTemplateButton = outlineButton("템플릿으로 저장") {
-            val template = buildTemplateFromInputs(questionInput, optionEditor.values(), durationInput) ?: return@outlineButton
+            val template = buildTemplateFromInputs(questionInput, optionEditor.values(), durationInput, allowParticipantOptionsInput.isChecked) ?: return@outlineButton
             store.saveTemplate(template)
             Toast.makeText(this, "템플릿 저장 완료", Toast.LENGTH_SHORT).show()
         }
@@ -377,15 +397,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showTemplatePicker(
         currentQuestion: String = "",
         currentOptions: String = "",
-        currentDuration: String = "300"
+        currentDuration: String = "300",
+        currentAllowParticipantOptions: Boolean = false
     ) {
         setPage("투표")
-        rememberScreen { showTemplatePicker(currentQuestion, currentOptions, currentDuration) }
+        rememberScreen { showTemplatePicker(currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions) }
         page.addView(breadcrumb("홈", "투표", "템플릿 선택"))
         page.addView(topBar("템플릿 선택"))
         page.addView(bodyText("템플릿을 선택하면 투표 작성 화면에 질문과 선택지가 채워집니다."))
         store.loadTemplates().forEach { template ->
-            page.addView(templatePickerRow(template, currentQuestion, currentOptions, currentDuration))
+            page.addView(templatePickerRow(template, currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions))
         }
         page.addView(outlineButton("작성 화면으로") {
             showCompose(
@@ -395,7 +416,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     question = currentQuestion,
                     options = currentOptions.lines().map { it.trim() }.filter { it.isNotBlank() },
                     durationMinutes = ((currentDuration.toIntOrNull() ?: 300) + 59) / 60,
-                    durationSeconds = currentDuration.toIntOrNull() ?: 300
+                    durationSeconds = currentDuration.toIntOrNull() ?: 300,
+                    allowParticipantOptions = currentAllowParticipantOptions
                 )
             )
         })
@@ -408,14 +430,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             question = "",
             options = emptyList(),
             durationMinutes = 5,
-            durationSeconds = 300
+            durationSeconds = 300,
+            allowParticipantOptions = false
         )
     }
 
     private fun buildTemplateFromInputs(
         questionInput: EditText,
         options: List<String>,
-        durationInput: EditText
+        durationInput: EditText,
+        allowParticipantOptions: Boolean
     ): PollTemplate? {
         val question = questionInput.text.toString().trim()
         if (question.isBlank()) {
@@ -434,7 +458,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             question = question,
             options = options,
             durationMinutes = ((durationSeconds + 59) / 60).coerceIn(1, CUSTOM_DURATION_MAX_SECONDS / 60),
-            durationSeconds = durationSeconds
+            durationSeconds = durationSeconds,
+            allowParticipantOptions = allowParticipantOptions
         )
     }
 
@@ -442,7 +467,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         template: PollTemplate,
         currentQuestion: String,
         currentOptions: String,
-        currentDuration: String
+        currentDuration: String,
+        currentAllowParticipantOptions: Boolean
     ): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -469,7 +495,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 setOnClickListener {
                     store.deleteTemplate(template.id)
                     Toast.makeText(this@MainActivity, "템플릿 삭제 완료", Toast.LENGTH_SHORT).show()
-                    showTemplatePicker(currentQuestion, currentOptions, currentDuration)
+                    showTemplatePicker(currentQuestion, currentOptions, currentDuration, currentAllowParticipantOptions)
                 }
             }
             var downX = 0f
@@ -543,6 +569,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                         topMargin = dp(8)
                     }
                 })
+                if (template.allowParticipantOptions) {
+                    addView(TextView(context).apply {
+                        text = "참여자 선택지 추가 허용"
+                        textSize = 13f
+                        setTextColor(0xFF176B4D.toInt())
+                        setPadding(0, dp(8), 0, 0)
+                    })
+                }
             })
             addView(TextView(context).apply {
                 text = "›"
@@ -594,6 +628,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         page.addView(countdownCard(poll))
         page.addView(label("선택지 미리보기"))
         page.addView(statusCard("선택지", poll.options.joinToString(" / ")))
+        if (poll.allowParticipantOptions) {
+            page.addView(bodyText("참여 후 새 선택지를 입력해 바로 투표할 수 있습니다."))
+        }
         page.addView(bodyText("참여하기를 누르면 선택지 화면으로 이동합니다. 거절하면 이 투표는 홈에서 숨겨집니다."))
         page.addView(buttonRow(
             compactButton("참여하기", BUTTON_PRIMARY) {
@@ -628,6 +665,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             } else {
                 poll.options.forEach { option ->
                     page.addView(choicePill(option) { castVote(poll, option) })
+                }
+                if (poll.allowParticipantOptions) {
+                    page.addView(participantOptionComposer(poll))
                 }
             }
         }
@@ -673,6 +713,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 page.addView(label("선택지"))
                 poll.options.forEach { option ->
                     page.addView(choicePill(option) { castVote(poll, option) })
+                }
+                if (poll.allowParticipantOptions) {
+                    page.addView(participantOptionComposer(poll))
                 }
             }
         }
@@ -759,6 +802,41 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         }
     }
 
+    private fun participantOptionComposer(poll: NearbyPoll): LinearLayout {
+        val optionInput = inputBox("새 선택지 입력", "").apply {
+            layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                rightMargin = dp(8)
+            }
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = blockParams()
+            addView(TextView(context).apply {
+                text = "새 선택지로 투표"
+                textSize = 14f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(0xFF526158.toInt())
+                setPadding(dp(2), dp(10), 0, dp(7))
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(optionInput)
+                addView(compactButton("제출", BUTTON_CHOICE) {
+                    val suggestion = normalizedOption(optionInput.text.toString())
+                    when {
+                        suggestion.isBlank() -> Toast.makeText(this@MainActivity, "선택지를 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                        suggestion.length > MAX_OPTION_LENGTH -> Toast.makeText(this@MainActivity, "선택지는 ${MAX_OPTION_LENGTH}자 이하로 입력해 주세요.", Toast.LENGTH_SHORT).show()
+                        suggestion !in poll.options && poll.options.size >= MAX_POLL_OPTION_COUNT -> Toast.makeText(this@MainActivity, "선택지는 최대 ${MAX_POLL_OPTION_COUNT}개까지 추가할 수 있습니다.", Toast.LENGTH_SHORT).show()
+                        else -> castVote(poll, suggestion)
+                    }
+                }.apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(70), dp(48))
+                })
+            })
+        }
+    }
+
     private fun resultAsTemplate(result: SharedResult, id: String): PollTemplate {
         val durationSeconds = result.durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, CUSTOM_DURATION_MAX_SECONDS)
         return PollTemplate(
@@ -767,7 +845,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             question = result.question,
             options = result.options,
             durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1),
-            durationSeconds = durationSeconds
+            durationSeconds = durationSeconds,
+            allowParticipantOptions = result.allowParticipantOptions
         )
     }
 
@@ -2272,7 +2351,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         return if (avatarId in 0 until AVATAR_COUNT) avatarId else avatarIdForUser(id)
     }
 
-    private fun publishPoll(question: String, options: List<String>, durationSeconds: Int) {
+    private fun publishPoll(question: String, options: List<String>, durationSeconds: Int, allowParticipantOptions: Boolean) {
         val durationMinutes = ((durationSeconds + 59) / 60).coerceAtLeast(1)
         val poll = NearbyPoll(
             id = "poll-${System.currentTimeMillis()}",
@@ -2283,7 +2362,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             options = options,
             durationMinutes = durationMinutes,
             durationSeconds = durationSeconds,
-            endAtMillis = System.currentTimeMillis() + durationSeconds * 1_000L
+            endAtMillis = System.currentTimeMillis() + durationSeconds * 1_000L,
+            allowParticipantOptions = allowParticipantOptions
         )
         activePolls[poll.id] = poll
         receivedVotesByPoll[poll.id] = linkedMapOf()
@@ -2322,7 +2402,21 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         )
     }
 
+    private fun normalizedOption(option: String): String {
+        return option.trim().replace(Regex("\\s+"), " ")
+    }
+
+    private fun addSuggestedOptionIfNeeded(poll: NearbyPoll, option: String): NearbyPoll {
+        if (option in poll.options) return poll
+        val updatedPoll = poll.copy(options = poll.options + option)
+        activePolls[poll.id] = updatedPoll
+        sendPoll(updatedPoll)
+        appendLog("참여자 선택지 추가: $option")
+        return updatedPoll
+    }
+
     private fun castVote(poll: NearbyPoll, option: String) {
+        val submittedOption = normalizedOption(option)
         val isPublishedByMe = activePolls.containsKey(poll.id)
         val receivedVotes = votesFor(poll.id)
         val receivedVoteNames = voteNamesFor(poll.id)
@@ -2339,13 +2433,26 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             Toast.makeText(this, "종료된 투표입니다.", Toast.LENGTH_SHORT).show()
             return
         }
+        if (submittedOption.isBlank() || submittedOption.length > MAX_OPTION_LENGTH) {
+            Toast.makeText(this, "선택지를 확인해 주세요.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val newOption = submittedOption !in poll.options
+        if (newOption && !poll.allowParticipantOptions) {
+            Toast.makeText(this, "새 선택지를 추가할 수 없는 투표입니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (newOption && poll.options.size >= MAX_POLL_OPTION_COUNT) {
+            Toast.makeText(this, "선택지는 최대 ${MAX_POLL_OPTION_COUNT}개까지 추가할 수 있습니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
         nearby.sendToAll(
             NearVoteMessage(
                 type = NearVoteMessageType.VOTE,
                 senderId = userId,
                 payloadJson = JSONObject()
                     .put("pollId", poll.id)
-                    .put("option", option)
+                    .put("option", submittedOption)
                     .put("voterId", userId)
                     .put("voterName", selfName)
                     .put("voterAvatarId", selfAvatarId)
@@ -2353,14 +2460,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             ).toJson()
         )
         if (isPublishedByMe) {
-            receivedVotes[userId] = option
+            val updatedPoll = addSuggestedOptionIfNeeded(poll, submittedOption)
+            receivedVotes[userId] = submittedOption
             receivedVoteNames[userId] = selfName
             receivedVoteAvatars[userId] = selfAvatarId
-            saveLocalReceipt(poll, option)
-            showPublishedPoll(poll)
+            saveLocalReceipt(updatedPoll, submittedOption)
+            showPublishedPoll(updatedPoll)
         } else {
-            submittedVotes[poll.id] = option
-            showVoteSubmitted(poll, option)
+            submittedVotes[poll.id] = submittedOption
+            showVoteSubmitted(poll, submittedOption)
         }
     }
 
@@ -2390,14 +2498,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             }
             NearVoteMessageType.VOTE -> {
                 val payload = JSONObject(message.payloadJson)
-                val poll = activePolls[payload.optString("pollId")] ?: return
+                var poll = activePolls[payload.optString("pollId")] ?: return
                 val receivedVotes = votesFor(poll.id)
                 val receivedVoteNames = voteNamesFor(poll.id)
                 val receivedVoteAvatars = voteAvatarsFor(poll.id)
                 val voterId = payload.optString("voterId", message.senderId)
                 val voterName = payload.optString("voterName", voterId.take(8))
                 val voterAvatarId = payload.optInt("voterAvatarId", avatarIdForUser(voterId))
-                val option = payload.optString("option")
+                val option = normalizedOption(payload.optString("option"))
                 if (option.isBlank()) return
                 if (poll.hasEnded()) {
                     appendLog("종료된 투표의 표는 무시함: $voterId")
@@ -2407,6 +2515,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                     appendLog("중복 투표 무시: $voterId")
                     sendReceipt(endpointId, poll, voterId, voterName, receivedVotes.getValue(voterId))
                     return
+                }
+                val newOption = option !in poll.options
+                if (newOption && (!poll.allowParticipantOptions || option.length > MAX_OPTION_LENGTH || poll.options.size >= MAX_POLL_OPTION_COUNT)) {
+                    appendLog("허용되지 않은 새 선택지 무시: $option")
+                    return
+                }
+                if (newOption) {
+                    poll = addSuggestedOptionIfNeeded(poll, option)
                 }
                 receivedVotes[voterId] = option
                 receivedVoteNames[voterId] = voterName
@@ -2522,7 +2638,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 participantIds = participantIds,
                 participantSelections = participantSelections
             ),
-            durationSeconds = poll.durationSeconds
+            durationSeconds = poll.durationSeconds,
+            allowParticipantOptions = poll.allowParticipantOptions
         )
         sharedResult = result
         sharedResultsByPoll[poll.id] = result
@@ -2553,7 +2670,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val delay = (poll.endAtMillis - System.currentTimeMillis()).coerceAtLeast(1_000L)
         handler.postDelayed({
             if (activePolls.containsKey(poll.id) && !sharedResultPollIds.contains(poll.id)) {
-                shareResultBlock(poll)
+                shareResultBlock(activePolls.getValue(poll.id))
             }
         }, delay)
     }
@@ -2914,6 +3031,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         private const val AVATAR_CARD_SIZE = 56
         private const val CUSTOM_DURATION_MIN_SECONDS = 10
         private const val CUSTOM_DURATION_MAX_SECONDS = 8 * 60 * 60
+        private const val MAX_OPTION_LENGTH = 30
+        private const val MAX_POLL_OPTION_COUNT = 20
         private const val BUTTON_PRIMARY = 1
         private const val BUTTON_OUTLINE = 2
         private const val BUTTON_QUIET = 3
