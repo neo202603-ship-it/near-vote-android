@@ -24,6 +24,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.NumberPicker
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -284,11 +285,28 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         val questionInput = inputBox("질문", selectedTemplate.question)
         val optionEditor = OptionTagEditor(selectedTemplate.options)
         val durationInput = inputBox("제한시간(초)", selectedTemplate.durationSeconds.toString(), numberOnly = true)
+        val hasCustomDuration = !isPresetDuration(selectedTemplate.durationSeconds)
+        val durationWheel = NumberPicker(this).apply {
+            minValue = CUSTOM_DURATION_MIN_SECONDS
+            maxValue = CUSTOM_DURATION_MAX_SECONDS
+            value = selectedTemplate.durationSeconds.coerceIn(minValue, maxValue)
+            wrapSelectorWheel = true
+            setFormatter { seconds -> "${seconds}초" }
+            setOnValueChangedListener { _, _, seconds ->
+                durationInput.setText(seconds.toString())
+            }
+        }
+        if (hasCustomDuration) {
+            durationInput.setText(durationWheel.value.toString())
+        }
         val customDurationPanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = if (isPresetDuration(selectedTemplate.durationSeconds)) View.GONE else View.VISIBLE
-            addView(label("직접 입력(초)"))
-            addView(durationInput)
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = if (hasCustomDuration) View.VISIBLE else View.GONE
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            background = rounded(0xFFFFFFFF.toInt(), 14, 0xFFC6DED1.toInt())
+            layoutParams = blockParams()
+            addView(durationWheel, LinearLayout.LayoutParams(dp(128), dp(128)))
         }
 
         page.addView(label("템플릿"))
@@ -305,8 +323,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             durationInput = durationInput,
             onPresetSelected = { customDurationPanel.visibility = View.GONE },
             onCustomSelected = {
+                durationInput.setText(durationWheel.value.toString())
                 customDurationPanel.visibility = View.VISIBLE
-                durationInput.requestFocus()
             }
         ))
         page.addView(customDurationPanel)
@@ -324,7 +342,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 return@primaryButton
             }
             val publish = {
-                publishPoll(question, options, durationSeconds.coerceIn(30, 3_600))
+                publishPoll(question, options, durationSeconds.coerceIn(CUSTOM_DURATION_MIN_SECONDS, 3_600))
             }
             if (connectedCount == 0) {
                 confirmPublishingWithoutPeers(publish)
@@ -381,7 +399,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             Toast.makeText(this, "선택지는 2개 이상 필요합니다.", Toast.LENGTH_SHORT).show()
             return null
         }
-        val durationSeconds = (durationInput.text.toString().toIntOrNull() ?: 300).coerceIn(30, 3_600)
+        val durationSeconds = (durationInput.text.toString().toIntOrNull() ?: 300).coerceIn(CUSTOM_DURATION_MIN_SECONDS, 3_600)
         return PollTemplate(
             id = "template-${System.currentTimeMillis()}",
             title = question,
@@ -2574,6 +2592,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         private const val AVATAR_ROW_COUNT = 4
         private const val AVATAR_COUNT = AVATAR_COLUMN_COUNT * AVATAR_ROW_COUNT
         private const val AVATAR_CARD_SIZE = 56
+        private const val CUSTOM_DURATION_MIN_SECONDS = 10
+        private const val CUSTOM_DURATION_MAX_SECONDS = 360
         private const val BUTTON_PRIMARY = 1
         private const val BUTTON_OUTLINE = 2
         private const val BUTTON_QUIET = 3
