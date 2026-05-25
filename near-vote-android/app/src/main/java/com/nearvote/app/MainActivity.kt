@@ -2596,12 +2596,15 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private fun formatRemaining(remainingMillis: Long): String {
         val totalSeconds = (remainingMillis / 1_000L).coerceAtLeast(0L)
-        val minutes = totalSeconds / 60
+        val hours = totalSeconds / 3_600
+        val minutes = (totalSeconds % 3_600) / 60
         val seconds = totalSeconds % 60
-        return if (minutes > 0) {
+        return if (hours > 0) {
+            "%d:%02d:%02d".format(hours, minutes, seconds)
+        } else if (minutes > 0) {
             "%d:%02d".format(minutes, seconds)
         } else {
-            "${seconds}초"
+            "$seconds"
         }
     }
 
