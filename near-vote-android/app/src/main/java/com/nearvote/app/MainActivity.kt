@@ -807,6 +807,16 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 rightMargin = dp(8)
             }
+            setOnFocusChangeListener { view, hasFocus ->
+                if (hasFocus) {
+                    view.postDelayed({
+                        view.requestRectangleOnScreen(
+                            Rect(0, 0, view.width, view.height + dp(104)),
+                            true
+                        )
+                    }, KEYBOARD_SCROLL_DELAY_MS)
+                }
+            }
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -912,6 +922,8 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         expandedTitleView = null
         val scroll = ScrollView(this).apply {
             setBackgroundColor(0xFFF4F6F1.toInt())
+            clipToPadding = false
+            isFillViewport = true
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -935,7 +947,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             addView(compactTitleBar())
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
                 val statusTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-                page.setPadding(pageSidePadding, pageBaseTopPadding + statusTop, pageSidePadding, pageBottomPadding)
+                val keyboardBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                val keyboardScrollSpace = if (keyboardBottom > 0) dp(112) else 0
+                page.setPadding(
+                    pageSidePadding,
+                    pageBaseTopPadding + statusTop,
+                    pageSidePadding,
+                    pageBottomPadding + keyboardScrollSpace
+                )
                 compactTitleBarView?.setPadding(dp(18), dp(12) + statusTop, dp(18), dp(12))
                 insets
             }
@@ -3024,6 +3043,7 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         private const val NEARBY_HEARTBEAT_MS = 10_000L
         private const val NEARBY_PULSE_MS = 30_000L
         private const val CONNECTION_SYNC_DELAY_MS = 500L
+        private const val KEYBOARD_SCROLL_DELAY_MS = 180L
         private const val URGENT_COUNTDOWN_MS = 10_000L
         private const val AVATAR_COLUMN_COUNT = 5
         private const val AVATAR_ROW_COUNT = 4
