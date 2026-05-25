@@ -779,9 +779,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     private fun showSharedResult(result: SharedResult) {
         setPage("결과")
         rememberScreen { showSharedResult(result) }
-        page.addView(breadcrumb("홈", "결과", if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
-        page.addView(topBar(if (isMyResult(result)) "내가 만든 결과" else "공유받은 결과"))
-        page.addView(avatarInfoCard("투표", result.question, resultMetadata("제안자: ${result.proposerName}", friendlyTime(result.createdAtMillis)), resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
+        page.addView(breadcrumb("홈", "결과", "투표 결과"))
+        page.addView(topBar("투표 결과"))
+        page.addView(avatarInfoCard("", result.question, resultMetadata("제안자: ${result.proposerName}", friendlyTime(result.createdAtMillis)), resolvedAvatarId(result.proposerId, result.proposerAvatarId)))
         page.addView(label("결과"))
         val total = result.counts.values.sum().coerceAtLeast(1)
         rankedResultOptions(result).forEach { option ->
@@ -1642,11 +1642,13 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                addView(TextView(context).apply {
-                    text = title
-                    textSize = 13f
-                    setTextColor(0xFF647268.toInt())
-                })
+                if (title.isNotBlank()) {
+                    addView(TextView(context).apply {
+                        text = title
+                        textSize = 13f
+                        setTextColor(0xFF647268.toInt())
+                    })
+                }
                 addView(TextView(context).apply {
                     text = value
                     textSize = 20f
