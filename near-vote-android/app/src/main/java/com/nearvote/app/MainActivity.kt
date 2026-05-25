@@ -2,6 +2,7 @@ package com.nearvote.app
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -32,6 +33,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.nearvote.app.data.NearVoteStore
@@ -104,9 +106,14 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { grants ->
-        val granted = grants.values.all { it }
+    ) {
+        val granted = hasNearbyPermissions()
         appendLog(if (granted) "권한 준비 완료" else "일부 권한이 꺼져 있음")
+        if (granted) {
+            applyAutoConnectSetting()
+        } else {
+            updateConnectionStatus()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,7 +125,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         autoConnectEnabled = store.isAutoConnectEnabled()
         nearby = NearbyVoteConnectionManager(this, selfName, this)
         simulator = LocalVoteSimulator(selfName)
-        requestNearbyPermissions()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 goBackInApp()
@@ -1899,14 +1905,18 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
         handler.removeCallbacks(nearbyPulse)
         if (!autoConnectEnabled) return
         animateConnectionSearchPulse()
-        nearby.maintainNearbyMode()
+        nearby.restartNearbyMode()
         handler.postDelayed(nearbyHeartbeat, NEARBY_HEARTBEAT_MS)
         handler.postDelayed(nearbyPulse, NEARBY_PULSE_MS)
     }
 
     private fun applyAutoConnectSetting() {
         if (autoConnectEnabled) {
-            startNearbyHeartbeat()
+            if (hasNearbyPermissions()) {
+                startNearbyHeartbeat()
+            } else {
+                requestNearbyPermissions()
+            }
         } else {
             handler.removeCallbacks(nearbyHeartbeat)
             handler.removeCallbacks(nearbyPulse)
@@ -2458,7 +2468,17 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
     }
 
     private fun requestNearbyPermissions() {
-        val permissions = buildList {
+        permissionLauncher.launch(nearbyPermissions())
+    }
+
+    private fun hasNearbyPermissions(): Boolean {
+        return nearbyPermissions().all { permission ->
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun nearbyPermissions(): Array<String> {
+        return buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
 
@@ -2471,10 +2491,6 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 add(Manifest.permission.NEARBY_WIFI_DEVICES)
             }
         }.toTypedArray()
-
-        if (permissions.isNotEmpty()) {
-            permissionLauncher.launch(permissions)
-        }
     }
 
     private fun blockParams(): LinearLayout.LayoutParams {

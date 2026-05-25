@@ -151,6 +151,12 @@ class NearbyVoteConnectionManager(
         startDiscovery()
     }
 
+    fun restartNearbyMode() {
+        listener.onLog("주변 연결 초기화 후 다시 시작")
+        stop()
+        startNearbyMode()
+    }
+
     fun maintainNearbyMode() {
         if (!isAdvertising) {
             startAdvertising()
