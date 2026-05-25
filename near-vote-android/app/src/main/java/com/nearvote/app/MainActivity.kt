@@ -1231,7 +1231,9 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 text = title
                 textSize = 24f
                 setTypeface(typeface, Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
+            addView(profileAvatarButton())
             compactTitleTextView?.text = title
             expandedTitleView = this
         }
@@ -1253,9 +1255,26 @@ class MainActivity : ComponentActivity(), NearbyVoteConnectionManager.Listener {
                 textSize = 18f
                 setTextColor(0xFF10251D.toInt())
                 setTypeface(typeface, Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 compactTitleTextView = this
             })
+            addView(profileAvatarButton(compact = true))
             compactTitleBarView = this
+        }
+    }
+
+    private fun profileAvatarButton(compact: Boolean = false): FrameLayout {
+        val size = if (compact) dp(44) else dp(48)
+        val tileSize = if (compact) dp(39) else dp(42)
+        return FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "내 아이디 관리"
+            layoutParams = LinearLayout.LayoutParams(size, size)
+            setOnClickListener { showMyPage() }
+            addView(AvatarTileView(selfAvatarId).apply {
+                layoutParams = FrameLayout.LayoutParams(tileSize, tileSize, Gravity.CENTER)
+            })
         }
     }
 
